@@ -1,0 +1,12 @@
+ArrayTaskID   data_seed_start    data_seed_end    sgd_seed_start    sgd_seed_end    init_seed_start    init_seed_end    wd     grok    train_size    hiddenlayer    learning_rate_input    train_type    P    train_fraction    
+1             0                  3                0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
+2             0                  3                0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50   
+3             3                  6                0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
+4             3                  6                0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50
+5             6                  9                0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
+6             6                  9                0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50
+9             9                  11               0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
+10            9                  11               0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50
+
+
+
