@@ -1,10 +1,10 @@
 from data_objects import *
-from cluster_run_mod import TrainArgs
-from cluster_run_mod import ModularArithmeticDataset
+from cluster_run_average import TrainArgs
+from cluster_run_average import ModularArithmeticDataset
 import inspect
 import functools
 from activations_Ising import *
-from cluster_run_bias import CNN_nobias
+#from cluster_run_bias import CNN_nobias
 import torch.nn.functional as F
 
 
@@ -460,8 +460,8 @@ if __name__=="__main__":
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/ModAdd/ModAdd_512_grok_False.torch"
     
     #dynamical data
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdata3/grok_True_time_1715446487_hiddenlayer_[100]/data_seed_0_time_1715452552_train_500_wd_0.08_lr0.0001_wm_10"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdata3/grok_False_time_1715446556_hiddenlayer_[100]/data_seed_1_time_1715452258_train_500_wd_0.05_lr0.0001_wm_1"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717357641"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717358876"
 
     #data_object_file_name="clusterdata/grok_False_time_1712763706_wm_1/data_seed_0_time_1712763732_train_100_wd_0.0_lr0.004"
     #data_object_file_name_ng=data_object_file_name#"clusterdata/grok_False_time_1712762395_wm_1/data_seed_0_time_1712762659_train_100_wd_0.0_lr0.001"
@@ -477,7 +477,11 @@ if __name__=="__main__":
     with open(dataset_filename, "rb") as handle:
         dataset = dill.load(handle)[1]
 
-    # single_run.plot_traincurves(single_run_ng).show()
+    single_run.plot_traincurves(single_run_ng).show()
+    single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
+    exit()
+
+    exit()
     # fig=make_subplots(rows=1,cols=1)
     # fig.add_trace(go.Scatter(x=list(range(len(single_run.train_accuracies))),y=single_run.train_accuracies,marker=dict(color='red'),name='Grok'),row=1,col=1)
     # fig.add_trace(go.Scatter(x=list(range(len(single_run.test_accuracies))),y=single_run.test_accuracies,marker=dict(color='red'),name='Grok'),row=1,col=1)

@@ -27,14 +27,14 @@ import copy
 #import kaleido
 
 ################Seeds
-from Training.data_objects import seed_average_onerun
-from Training.cluster_run_average import TrainArgs
-from Training.cluster_run_average import CNN
-from Training.cluster_run_average import CNN_nobias
+from data_objects import seed_average_onerun
+from cluster_run_average import TrainArgs
+from cluster_run_average import CNN
+from cluster_run_average import CNN_nobias
 from contextlib import contextmanager
 import functools
-from Training.cluster_run_average import ModularArithmeticDataset
-from Training.cluster_run_average import Square,Network
+from cluster_run_average import ModularArithmeticDataset
+from cluster_run_average import Square, MLP
 import glob
 
 
@@ -2344,8 +2344,11 @@ if __name__== "__main__":
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/grok_ising/clusterdata/grok_True_time_1714759182/data_seed_0_time_1714762834_train_500_wd_0.08_lr0.0001"
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/grok_ising/modular_arithmetic/reference/cluster_run/clusterdata4/hiddenlayer_[100]_desc_avgIsing/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_0.08_wm_1_time_1715789462"
 
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_True_standard_param.torch"#<--
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_False_standard_param.torch"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717357641"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717358876"
+
+    #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_True_standard_param.torch"#<--
+    #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_False_standard_param.torch"
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/fclayer_runs/grok_True_time_1714254742/data_seed_0_time_1714257653_train_500_wd_0.08_lr0.0001"#<--
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/fclayer_runs/grok_False_time_1714254764/data_seed_0_time_1714257737_train_500_wd_0.05_lr0.0001"#<--
 
@@ -2436,7 +2439,7 @@ if __name__== "__main__":
 
     test=generate_test_set(dataset,1000)
     criterion=nn.CrossEntropyLoss()
-    epoch=99900
+    epoch=1900
     # learning_rate=single_run_ng.trainargs.lr
     # weight_decay=single_run_ng.trainargs.weight_decay
     # print(single_run.modelclass)
@@ -2500,17 +2503,17 @@ if __name__== "__main__":
     #magnitude_prune_prod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],fig=None,epoch=epoch).show()
     #single_run.plot_traincurves(single_run_ng).show()
     
-    foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdatawd0004/hiddenlayer_[100]_desc_avgIsingstandard_grokwd_0-005"
+    #foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdatawd0004/hiddenlayer_[100]_desc_avgIsingstandard_grokwd_0-005"
     #magnitude_prune_prod_avg(runfolder=foldername_seedaverage,pruning_percents=np.linspace(0.5,1,20),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],epoch=30000,fig=None).show()
-    magnitude_prune_epochs_avg(runfolder=foldername_seedaverage,pruning_percents=np.linspace(0.2,1,30),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],epochs=[18000,20000,23000,24000,25000,27000,30000,99900],fig=None).show()#[500,1000,5000,10000,20000,30000,50000,99900]
-    exit()
-    seed_dic=group_runs_to_dic(foldername_seedaverage)
-    for seed in seed_dic.keys():
-        print(f'seed {seed}')
-        magnitude_prune_prod(grokked_object=seed_dic[seed][0],non_grokked_object=seed_dic[seed][1],pruning_percents=np.linspace(0.5,1,25),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],fig=None,epoch=epoch).show()
+    #magnitude_prune_epochs_avg(runfolder=foldername_seedaverage,pruning_percents=np.linspace(0.2,1,30),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],epochs=[18000,20000,23000,24000,25000,27000,30000,99900],fig=None).show()#[500,1000,5000,10000,20000,30000,50000,99900]
+    #exit()
+    # seed_dic=group_runs_to_dic(foldername_seedaverage)
+    # for seed in seed_dic.keys():
+    #     print(f'seed {seed}')
+    #     magnitude_prune_prod(grokked_object=seed_dic[seed][0],non_grokked_object=seed_dic[seed][1],pruning_percents=np.linspace(0.5,1,25),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],fig=None,epoch=epoch).show()
     
 
-    exit()
+    
     def magnitude_prune_prod_mod(grokked_object,non_grokked_object,pruning_percents,layers_pruned,fig,epoch):
         original_model_g, original_model_dic_g=load_model(grokked_object,epoch)
         original_model_ng, original_model_dic_ng=load_model(non_grokked_object,epoch)
@@ -2581,7 +2584,8 @@ if __name__== "__main__":
 
     #print('mag prune mod')
     #single_run.plot_traincurves(single_run_ng).show()
-    #magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
+    magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
+    exit()
 
 
 # print(acc_loss_test(pruned_grok_model))

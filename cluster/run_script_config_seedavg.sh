@@ -1,20 +1,21 @@
 #!/bin/bash
-#SBATCH --job-name=wdless
+#SBATCH --job-name=wdswp
 #SBATCH --ntasks=1
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #SBATCH --partition=eng-research-gpu
+#SBATCH --gres=gpu:1
 #SBATCH --mail-user=dmanningcoe@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --array=1-10
+#SBATCH --array=1-1
 module load anaconda/2023-Mar/3
 module load cuda/11.7
 # nvcc --version
 # nvidia-smi
 
-sleep $(($SLURM_ARRAY_TASK_ID * 30))
+sleep $(($SLURM_ARRAY_TASK_ID * 5))
 
 # Activate the Conda environment
-source activate py310_2
+source activate torch_env
 
 config=config_average.txt
 

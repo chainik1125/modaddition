@@ -1,12 +1,18 @@
 ArrayTaskID   data_seed_start    data_seed_end    sgd_seed_start    sgd_seed_end    init_seed_start    init_seed_end    wd     grok    train_size    hiddenlayer    learning_rate_input    train_type    P    train_fraction    
-1             0                  3                0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
-2             0                  3                0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50   
-3             3                  6                0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
-4             3                  6                0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50
-5             6                  9                0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
-6             6                  9                0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50
-9             9                  11               0                 1               0                  1                0.004  True    500           100            1                      Ising         97   50                
-10            9                  11               0                 1               0                  1                0.08   False   500           100            1                      Ising         97   50
+1             0                  1                0                 1               0                  1                1e-1  False    500           1024           1                       Mod           97   40                
+2             0                  1                0                 1               0                  1                1e-2  False    500           1024           1                       Mod           97   40   
+3             0                  1                0                 1               0                  1                1e-3  False    500           1024           1                       Mod           97   40                
+4             0                  1                0                 1               0                  1                1e-4  False    500           1024           1                       Mod           97   40
+5             0                  1                0                 1               0                  1                1e-5  False    500           1024           1                       Mod           97   40                
+6             0                  1                0                 1               0                  1                1e-6  False    500           1024           1                       Mod           97   40
+9             0                  1                0                 1               0                  1                1e-7  False    500           1024           1                       Mod           97   40                
+10            0                  1                0                 1               0                  1                1e-8  False    500           1024           1                       Mod           97   40
+11            0                  1                0                 1               0                  1                1e-9  False    500           1024           1                       Mod           97   40
+12            0                  1                0                 1               0                  1                1e-10 False    500           1024           1                       Mod           97   40
+13            0                  1                0                 1               0                  1                1e-11 False    500           1024           1                       Mod           97   40
+14            0                  1                0                 1               0                  1                1e-12 False    500           1024           1                       Mod           97   40
+15            0                  1                0                 1               0                  1                1e-13 False    500           1024           1                       Mod           97   40
+
 
 
 

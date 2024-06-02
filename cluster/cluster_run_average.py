@@ -73,7 +73,7 @@ def create_model(init_seed,model_type):
 						activation=nn.ReLU(), optimizer=torch.optim.SGD,
 						learning_rate=learning_rate, weight_decay=weight_decay, multiplier=weight_multiplier, dropout_prob=dropout_prob)
 	elif model_type=="ModMLP":
-		model=MLP(P=P,hidden=hiddenlayers,bias=True,learning_rate=learning_rate,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
+		model=MLP(P=P,hidden=hiddenlayers,bias=True,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
 		
 	
 	print(model)
@@ -578,7 +578,9 @@ class MLP(nn.Module):
 		self.model = nn.Sequential(*layers)
 
 		# if weight_multiplier != 1:#I think this is redundant
-
+		with torch.no_grad():
+			for param in self.parameters():
+				param.data = weight_multiplier * param.data
 
 		self.optimizer = optimizer(params=self.parameters(), lr=learning_rate, weight_decay=weight_decay)
 		self.init_weights()
@@ -593,10 +595,6 @@ class MLP(nn.Module):
 				nn.init.xavier_normal_(m.weight)
 				if m.bias is not None:
 					nn.init.zeros_(m.bias)
-
-		with torch.no_grad():
-			for param in self.parameters():
-				param.data = weight_multiplier * param.data
 
 
 
@@ -701,11 +699,6 @@ class ModularArithmeticDataset(Dataset):
 	def __getitem__(self, idx):
 		return (self.data[idx], self.indices[idx])
 
-def calculate_l_n_norm(model, n=2):
-    l_n_norm = 0.0
-    for param in model.parameters():
-        l_n_norm += torch.norm(param, p=n)
-    return l_n_norm
 
 if __name__ == '__main__':
 
@@ -757,7 +750,7 @@ if __name__ == '__main__':
 	if grok:
 		#learning_rate=learning_rate
 		weight_decay=weight_decay
-		weight_multiplier=1e0
+		weight_multiplier=1000
 
 	else:
 		#learning_rate=10**-4
@@ -790,7 +783,7 @@ if __name__ == '__main__':
 
 
 	#Train params
-	epochs=2000
+	epochs=300
 	save_interval=100
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
@@ -885,9 +878,6 @@ if __name__ == '__main__':
 		save_object.modelclass=model.__class__
 		save_object.modelconfig=config_dict
 		print(config_dict)
-		print(f'weight l2 norm: {calculate_l_n_norm(model,2)}')
-		
-
 		
 		
 

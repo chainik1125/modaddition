@@ -23,15 +23,10 @@ import torchvision
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 import torch.nn.functional as F
 import copy
-import inspect
-import itertools
 #import kaleido
 
 ################Seeds
 from data_objects import seed_average_onerun
-import functools
-from plotly.graph_objects import FigureWidget
-import dynamic_plot
 
 
 
@@ -59,7 +54,6 @@ class TrainArgs:
 	loss_criterion: str = "MSE"
 	batch_size: int = 64
 	activation: any=nn.ReLU
-	
 
 
 def create_model(init_seed,model_type):
@@ -70,10 +64,10 @@ def create_model(init_seed,model_type):
 	if model_type=="CNN":
 	# initialize model and print details
 		model = CNN(input_dim=16, output_size=2, input_channels=1, conv_channels=conv_channels, hidden_widths=hiddenlayers,
-						activation=nn.ReLU(), optimizer=torch.optim.SGD,
+						activation=nn.ReLU(), optimizer=torch.optim.Adam,
 						learning_rate=learning_rate, weight_decay=weight_decay, multiplier=weight_multiplier, dropout_prob=dropout_prob)
 	elif model_type=="ModMLP":
-		model=MLP(P=P,hidden=hiddenlayers,bias=True,learning_rate=learning_rate,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
+		model=Network(P=P,hidden=hiddenlayers,multiplier=weight_multiplier)
 		
 	
 	print(model)
@@ -87,146 +81,15 @@ def create_model(init_seed,model_type):
 def check_weights_update(initial_weights, updated_weights):
 	return not torch.equal(initial_weights, updated_weights)
 
-#Functions for plotting as you train:
-import plotly.io as pio
-import webbrowser
-import subprocess
-import http.server
-import socketserver
-import os
-import time
-import webbrowser
-from threading import Thread
-
-
-def start_server():
-    PORT = 8000
-    os.chdir(os.path.dirname(os.path.realpath(__file__)))  # Change directory to where the HTML file is located
-    Handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        print("Server running at localhost:{}".format(PORT))
-        httpd.serve_forever()
-
-# Function to open the browser window
-def open_browser():
-    time.sleep(2)  # Give the server some time to start
-    webbrowser.open_new("http://localhost:8000/updated_plot.html")
-
-def plot_traincurves(epochs,test_accuracies,train_accuracies,test_losses,train_losses,config_dict):
-	fig=make_subplots(rows=1, cols=2, subplot_titles=("Accuracy", "Loss"))
-		
-	test_acc_trace = go.Scatter(x=epochs, y=test_accuracies, mode='lines', name='Test accuracy', line=dict(color='red',dash='solid'))
-	train_acc_trace = go.Scatter(x=epochs, y=train_accuracies, mode='lines', name='Train accuracy', line=dict(color='blue',dash='dash'))
-	
-	test_loss_trace = go.Scatter(x=epochs, y=test_losses, mode='lines', name='Test loss', line=dict(color='red',dash='solid'))
-	train_loss_trace = go.Scatter(x=epochs, y=train_losses, mode='lines', name='Train loss', line=dict(color='blue',dash='dash'))
-
-	# Add traces to the figure
-	fig.add_trace(test_acc_trace, row=1, col=1)
-	fig.add_trace(train_acc_trace, row=1, col=1)
-
-	fig.add_trace(test_loss_trace, row=1, col=2)
-	fig.add_trace(train_loss_trace, row=1, col=2)
-	
-
-	fig.update_xaxes(title_text="Epoch")
-	fig.update_yaxes(title_text="Accuracy", row=1, col=1)
-	fig.update_yaxes(title_text="Loss", row=1, col=2,type='log')
-	
-	fig.update_layout(title_text=f'mlp {config_dict["hidden"]}, wd {config_dict["weight_decay"]}, lr {learning_rate}, multiplier {config_dict["weight_multiplier"]}, train frac {train_fraction}, optimizer {str(config_dict["optimizer"])}') 
-	
-	#,  )
-
-	return fig
-
-class TrainingPlot:
-	def __init__(self, plot_enabled=False):
-		self.plot_enabled = plot_enabled
-		
-
-		self.fig=make_subplots(rows=1, cols=2, subplot_titles=("Accuracy", "Loss"))
-		if self.plot_enabled:
-			# Initialize traces for loss and accuracy
-			self.test_acc_trace = go.Scatter(x=[], y=[], mode='lines', name='Test accuracy', line=dict(color='red',dash='solid'))
-			self.train_acc_trace = go.Scatter(x=[], y=[], mode='lines', name='Train accuracy', line=dict(color='blue',dash='dash'))
-			
-			self.test_loss_trace = go.Scatter(x=[], y=[], mode='lines', name='Test loss', line=dict(color='red',dash='solid'))
-			self.train_loss_trace = go.Scatter(x=[], y=[], mode='lines', name='Train loss', line=dict(color='blue',dash='dash'))
-
-			# Add traces to the figure
-			self.fig.add_trace(self.test_acc_trace, row=1, col=1)
-			self.fig.add_trace(self.train_acc_trace, row=1, col=1)
-
-			self.fig.add_trace(self.test_loss_trace, row=1, col=2)
-			self.fig.add_trace(self.train_loss_trace, row=1, col=2)
-			
-
-			self.fig.update_xaxes(title_text="Epoch")
-			self.fig.update_yaxes(title_text="Accuracy", row=1, col=1)
-			self.fig.update_yaxes(title_text="Loss", row=1, col=1)
-			self.fig=FigureWidget(self.fig)
-			webbrowser.open('http://localhost:8000')
-			pio.write_html(self.fig, 'updated_plot.html')
-			# dynamic_plot.start_http_server('updated_plot.html')
-			# dynamic_plot.display_html_in_browser()
-			dynamic_plot.update_html_content()
-			
-			# server_thread = Thread(target=start_server)
-			# server_thread.daemon = True  # Allow the program to exit even if this thread is still running
-			# server_thread.start()
-			# browser_thread = Thread(target=open_browser)
-			# browser_thread.start()
-
-			
-	def update(self, epochs,test_accs,train_accs,test_losses,train_losses,first):
-		if self.plot_enabled:
-			# Append new data points to the traces
-			self.test_acc_trace['x'] = epochs
-			self.test_acc_trace['y'] = test_accs
-			self.train_acc_trace['x'] = epochs
-			self.train_acc_trace['y'] = train_accs
-			
-			self.test_loss_trace['x'] = epochs
-			self.test_loss_trace['y'] = test_losses
-			self.train_acc_trace['x'] = epochs
-			self.train_loss_trace['y'] = train_losses
-			# Update the figure with new trace data
-			self.fig.update_traces(selector=dict(name='Test accuracy'), x=self.test_acc_trace['x'], y=self.test_acc_trace['y'])
-			self.fig.update_traces(selector=dict(name='Train accuracy'), x=self.train_acc_trace['x'], y=self.train_acc_trace['y'])
-
-			self.fig.update_traces(selector=dict(name='Test loss'), x=self.test_loss_trace['x'], y=self.test_loss_trace['y'])
-			self.fig.update_traces(selector=dict(name='Train Loss'), x=self.train_loss_trace['x'], y=self.train_loss_trace['y'])
-			
-			pio.write_html(self.fig, 'updated_plot.html')
-			
-			# dynamic_plot.refresh_browser_window()
-
-			dynamic_plot.update_html_content()
-			# if first:
-			# 	browser=webbrowser.get()
-			# 	browser.open('file://' + os.path.realpath('updated_plot.html'))
-			# else:
-			# 	browser.open('file://' + os.path.realpath('updated_plot.html'), new=0)
-			#subprocess.call(['open', 'updated_plot.html'])
-
-
-	def close(self):
-			if self.plot_enabled:
-				pass  # Plotly automatically handles closing the plot
-
-def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
-	plot_interval=50
+def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type):
 	start_time = timer()
 	first_time_training = True
 	epochs = epochs # how many runs through entire training data
 	save_models=True
 	save_interval=save_interval
 	
-	model=initial_model
-	training_plot = TrainingPlot(plot_as_train)
-	#os.open('dynamic_plot.html')
+	model=initial_model	
 	
-		
 	if loss_criterion=="MSE":
 		criterion = nn.MSELoss()
 	elif loss_criterion=="CrossEntropy":
@@ -269,7 +132,9 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 
 				optimizer.zero_grad() # clears old gradients stored in previous step
 				train_loss.backward() # calculates gradient of loss function using backpropagation (stochastic)
+				
 				optimizer.step()
+				
 
 				predicted = torch.max(y_pred.data, 1)[1]
 				train_losses.append(train_loss.item())
@@ -282,7 +147,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				X_train,y_train=batch
 				optimizer.zero_grad()
 				y_pred=model(X_train).to(device)
-				y_train=y_train.float().to(device)
+				y_train=y_train.float().clone().detach()
 				loss = criterion(y_pred, y_train.to(device))
 				loss.backward()
 				optimizer.step()
@@ -291,7 +156,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				if loss_criterion=='MSE':
 					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
 				else:
-					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
+					train_acc += (y_pred.argmax(dim=1) == y_train).sum().item()
 			
 			train_loss /= len(train_loader)
 			train_losses.append(train_loss)
@@ -328,13 +193,13 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				for batch in test_loader:
 					X_test,y_test=batch
 					y_val=model(X_test).to(device)
-					float_y=y_test.float().clone().to(device)
+					float_y=y_test.float().clone().detach()
 					loss = criterion(y_val, float_y.to(device))
 					test_loss += loss.item()
 					if loss_criterion=='MSE':
-						test_acc += (y_val.argmax(dim=1) == float_y.argmax(dim=1)).sum().item()
+						test_acc += (y_val.argmax(dim=1) == y_test.argmax(dim=1)).sum().item()
 					else:
-						test_acc += (y_val.argmax(dim=1) == float_y.argmax(dim=1)).sum().item()
+						test_acc += (y_val.argmax(dim=1) == y_test).sum().item()
 				
 				test_loss /= len(test_loader)
 				test_losses.append(test_loss)
@@ -342,11 +207,9 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				test_accuracy.append(test_acc)
 
 
-		epochs_plot=list(range(len(test_accuracy)))
-		first=True
-		if i%plot_interval==0:
-			training_plot.update(epochs_plot, test_accuracy,train_accuracy,test_losses,train_losses,first)
-			first=False
+	 
+
+
 					
 
 
@@ -364,7 +227,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 			# print(save_dict0['model']['fc_layers.3.weight']==model.state_dict()['fc_layers.3.weight'])
 			save_dict = {
 					'model': copy.deepcopy(model.state_dict()),
-					'optimizer': copy.deepcopy(optimizer.state_dict()),
+					'optimizer': optimizer.state_dict(),
 					# 'scheduler': scheduler.state_dict(),
 					'train_loss': train_loss,
 					'test_loss': test_loss,
@@ -392,14 +255,13 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				print(12*" " + f"test loss: {test_loss:.4f}, accuracy: {test_accuracy[-1]:.4f}" )
 				print(60*"*")
 
-	training_plot.close()#Not necessary in plotly I think, but just in case
+
 	print(f'\nDuration: {timer() - start_time:.0f} seconds') # print the time elapsed
 
 	one_run_object.train_losses=train_losses
 	one_run_object.test_losses=test_losses
 	one_run_object.train_accuracies=train_accuracy
 	one_run_object.test_accuracies=test_accuracy
-	plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
 
 
 	# data = ["data[1] is of form [train_loss, test_loss], [train_acc, test_acc]", [[train_losses, test_losses], [train_accuracy, test_accuracy]]]
@@ -414,18 +276,9 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 # size of input is (num_datapts x input_channels x input_dim x input_dim)  and requires input_dim % 4 = 0
 # Conv, Pool, Conv, Pool, Fully Connected, Fully Connected, ...,  Output
 # zero padding is included to ensure same dimensions pre and post convolution
-def store_init_args(method):
-	@functools.wraps(method)
-	def wrapper(self, *args, **kwargs):
-		# Store the arguments in a dictionary
-		self._init_args = (args, kwargs)
-		return method(self, *args, **kwargs)
-	return wrapper
-
 class CNN(nn.Module):
-	@store_init_args
 	def __init__(self, input_dim, output_size, input_channels, conv_channels, hidden_widths,
-				activation=nn.ReLU(), optimizer=torch.optim.SGD,
+				activation=nn.ReLU(), optimizer=torch.optim.Adam,
 				learning_rate=0.001, weight_decay=0, multiplier=1, dropout_prob=0.01):
 
 		super().__init__()
@@ -485,69 +338,6 @@ class CNN(nn.Module):
 		for layer in self.fc_layers:
 			X = layer(X)
 		return X
-	
-class CNN_nobias(nn.Module):
-	def __init__(self, input_dim, output_size, input_channels, conv_channels, hidden_widths,
-				activation=nn.ReLU(), optimizer=torch.optim.SGD,
-				learning_rate=0.001, weight_decay=0, multiplier=1, dropout_prob=0.01):
-
-		super().__init__()
-
-		# transforms input from input_channels x input_dim x input_dim
-		# to out_channels x input_dim x input_dim
-		conv1 = nn.Conv2d(in_channels=input_channels, out_channels=conv_channels[0],
-									kernel_size=3, stride=1, padding=1,bias=False)
-		conv2 = nn.Conv2d(in_channels=conv_channels[0], out_channels=conv_channels[1],
-									kernel_size=3, stride=1, padding=1,bias=False)
-		# divide shape of input_dim by two after applying each convolution
-		# since this is applied twice, make sure that input_dim is divisible by 4!!!
-		pool = nn.MaxPool2d(kernel_size=2, stride=2)
-
-		# Construct convolution and pool layers
-		self.conv_layers = nn.ModuleList()
-		for conv_layer in [conv1, conv2]:
-			self.conv_layers.append(conv_layer)
-			self.conv_layers.append(activation)
-			self.conv_layers.append(pool)
-
-		# dropout to apply in FC layers
-		self.dropout = nn.Dropout(dropout_prob)
-
-		# construct fully connected layers
-		self.fc_layers = nn.ModuleList()
-		# flattened size after two convolutions and two poolings of data
-		input_size = (input_dim//4)**2 * conv_channels[1]
-		for size in hidden_widths:
-			self.fc_layers.append(nn.Linear(input_size, size,bias=False))
-			input_size = size  # For the next layer
-			self.fc_layers.append(activation)
-			self.fc_layers.append(self.dropout)
-		# add last layer without activation or dropout
-		self.fc_layers.append(nn.Linear(input_size, output_size,bias=False))
-
-		# multiply weights by overall factor
-		if multiplier != 1:
-			with torch.no_grad():
-				for param in self.parameters():
-					param.data = multiplier * param.data
-
-		# use GPU if available
-		self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-		self.to(self.device)
-
-		# set optimizer
-		self.optimizer = optimizer(params=self.parameters(),
-									lr=learning_rate, weight_decay=weight_decay)
-
-	def forward(self, X):
-		# convolution and pooling
-		for layer in self.conv_layers:
-			X = layer(X)
-		# fully connected layers
-		X = X.view(X.size(0), -1)   # Flatten data for FC layers
-		for layer in self.fc_layers:
-			X = layer(X)
-		return X
 
 
 
@@ -559,58 +349,60 @@ class Square(nn.Module):
 	def forward(self, x):
 		return torch.square(x)
 
-class MLP(nn.Module):
-	@store_init_args
-	def __init__(self, hidden=[512], P=97, optimizer=torch.optim.SGD, weight_multiplier=1, bias=False, learning_rate=0.01, weight_decay=0.0001):
-		super(MLP, self).__init__()
-		layers = []
-		input_dim = 2 * P
-		first = True
+class Network(nn.Module):
+	def __init__(self, hidden=[512],P=97,optimizer=torch.optim.Adam,multiplier=1):
+		super(Network, self).__init__()
+		layers=[]
+		input_dim=2*P
+		first=True
 		for layer_ind in range(len(hidden)):
 			if first:
-				layers.append(nn.Linear(input_dim, hidden[layer_ind], bias=bias))
+				layers.append(nn.Linear(input_dim, hidden[layer_ind]))
+				first=False
+				#layers.append(Square())
 				layers.append(nn.ReLU())
-				first = False
 			else:
-				layers.append(nn.Linear(hidden[layer_ind - 1], hidden[layer_ind], bias=bias))
+				layers.append(nn.Linear(hidden[layer_ind-1],hidden[layer_ind]))
+				#layers.append(Square())
 				layers.append(nn.ReLU())
-		layers.append(nn.Linear(hidden[-1], P,bias=bias))
+		layers.append(nn.Linear(hidden[-1],P))
 		self.model = nn.Sequential(*layers)
 
-		# if weight_multiplier != 1:#I think this is redundant
-
-
-		self.optimizer = optimizer(params=self.parameters(), lr=learning_rate, weight_decay=weight_decay)
+		# multiply weights by overall factor
+		if multiplier != 1:
+			with torch.no_grad():
+				for param in self.parameters():
+					param.data = multiplier * param.data
+			
+		# self.model = nn.Sequential(
+		#     for hiddenlayer in hidden:
+		#         nn.Linear(2*P, int(hiddenlayer)),
+		#         Square(), # Toggle between quadratic and ReLU
+		#         #nn.ReLU(),
+		#         nn.Linear(hidden, P))
+		self.optimizer = optimizer(params=self.parameters(),lr=learning_rate, weight_decay=weight_decay)
+		
 		self.init_weights()
-
 	def forward(self, x):
 		x = self.model(x)
 		return x
-
+	
+	# Weight initialization
 	def init_weights(self):
 		for m in self.modules():
+			if isinstance(m, nn.Embedding):
+				nn.init.xavier_normal_(m.weight)               
 			if isinstance(m, nn.Linear):
 				nn.init.xavier_normal_(m.weight)
-				if m.bias is not None:
-					nn.init.zeros_(m.bias)
-
-		with torch.no_grad():
-			for param in self.parameters():
-				param.data = weight_multiplier * param.data
-
-
+				nn.init.zeros_(m.bias)
 
 def create_ising_dataset(data_seed,train_size,test_size):
 	random.seed(data_seed)
 	for set_seed in [torch.manual_seed, torch.cuda.manual_seed_all, np.random.seed]:
 		set_seed(data_seed)
 	
-	if cluster:
-		datafilename="../Data/IsingML_L16_traintest.pickle"
-	else:
-		datafilename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
-	
-	with open(datafilename, "rb") as handle:
+	#with open("../../Data/IsingML_L16_traintest.pickle", "rb") as handle:
+	with open("/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle","rb") as handle:
 		data = pickle.load(handle)
 		print(f'Data length: {len(data[1])}')
 		print(data[0])
@@ -677,7 +469,7 @@ class ModularArithmeticDataset(Dataset):
 		if self.loss_criterion=='MSE':
 			indices = torch.empty((self.P**2,self.P),dtype=torch.float32)
 		else:
-			indices=torch.empty((self.P**2,self.P), dtype=torch.long)
+			indices=torch.empty((self.P**2),dtype=torch.LongTensor)
 		for i in torch.arange(self.P):
 			for j in torch.arange(self.P):
 				combined_idx = self.P*i + j
@@ -689,10 +481,8 @@ class ModularArithmeticDataset(Dataset):
 				newval=(i+j)%(self.P)
 				if self.loss_criterion=='MSE':
 					indices[combined_idx]=torch.nn.functional.one_hot(newval,self.P)
-					#I think to calculate it the other way around you, i.e. for MSE, you need 
-					#indices[combined_idx]=newval
 				else:
-					indices[combined_idx]=torch.nn.functional.one_hot(newval,self.P)
+					indices[combined_idx]=newval
 		return data, indices
 
 	def __len__(self):
@@ -701,11 +491,6 @@ class ModularArithmeticDataset(Dataset):
 	def __getitem__(self, idx):
 		return (self.data[idx], self.indices[idx])
 
-def calculate_l_n_norm(model, n=2):
-    l_n_norm = 0.0
-    for param in model.parameters():
-        l_n_norm += torch.norm(param, p=n)
-    return l_n_norm
 
 if __name__ == '__main__':
 
@@ -727,7 +512,7 @@ if __name__ == '__main__':
 	init_seed_end=int(sys.argv[6+cluster_array])
 	init_seeds=[i for i in range(init_seed_start,init_seed_end)]
 	print(init_seeds)
-	weight_decay=float(sys.argv[7+cluster_array])
+	weight_decay=int(sys.argv[7+cluster_array])/100
 	grok_str=str(sys.argv[8+cluster_array])
 	train_size=int(str(sys.argv[9+cluster_array]))
 	print(f'train_size: {train_size}')
@@ -737,7 +522,6 @@ if __name__ == '__main__':
 	train_type=sys.argv[12+cluster_array]#Is this mod addition or is this Ising
 	P=int(sys.argv[13+cluster_array])#Modulation
 	train_fraction=int(sys.argv[14+cluster_array])/100#train_fraction
-	cluster=bool(int(sys.argv[15+cluster_array]))
 	
 	
 	print(f" seeds: {data_seeds}, sgd_seeds: {sgd_seeds},init_seeds {init_seeds}")
@@ -755,12 +539,12 @@ if __name__ == '__main__':
 	#grok_locations=[0,100]#
 
 	if grok:
-		#learning_rate=learning_rate
+		learning_rate=10**-4
 		weight_decay=weight_decay
-		weight_multiplier=1e0
+		weight_multiplier=10
 
 	else:
-		#learning_rate=10**-4
+		learning_rate=10**-4
 		weight_decay=weight_decay
 		weight_multiplier=1
 	
@@ -772,14 +556,15 @@ if __name__ == '__main__':
 	ising = True # import ising dataset
 
 	# set functions for neural network
-	loss_criterion="CrossEntropy"
-	loss_fn = nn.CrossEntropyLoss   # 'MSELoss' or 'CrossEntropyLoss'
+	loss_criterion="MSE"
+	loss_fn = nn.MSELoss  # 'MSELoss' or 'CrossEntropyLoss'
 	optimizer_fn = torch.optim.Adam     # 'Adam' or 'AdamW' or 'SGD'
 	activation = nn.ReLU    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
 	# set parameters for neural network
 	weight_decay = weight_decay
 	learning_rate = learning_rate_input # lr
+
 	weight_multiplier = weight_multiplier # initialization-scale
 	dropout_prob=0
 	input_dim = 16**2 # 28 x 28 array of pixel values in MNIST (16x16 in Ising data)
@@ -790,126 +575,77 @@ if __name__ == '__main__':
 
 
 	#Train params
-	epochs=2000
+	epochs=1000
 	save_interval=100
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
 
 
 	
-	desc='test_moadadd'
-	root=f'../../large_files/clusterdata/hiddenlayer_{hiddenlayers}_desc_{desc}'
-	
-	
+	#root=f'../../parameter_hunt_runs/grok_{grok_str}_time_{int(time.time())}'
+	root=f'../../large_files/clusterdata2/grok_{grok_str}_time_{int(time.time())}_hiddenlayer_{hiddenlayers}'
+	#root=f'../ParameterHunt/grok_{grok_str}_time_{int(time.time())}_hiddenlayer{hiddenlayers}'
 	os.makedirs(root,exist_ok=True)
-	print('makedirs called')
 	print(str(root))
-	all_same=True
-	if all_same:
-		seeds=[(i,i,i) for i in data_seeds]
-	else:
-		seeds=list(itertools.product(data_seeds,sgd_seeds,init_seeds))
-	for seed_triple in seeds:
-		data_seed=seed_triple[0]
-		sgd_seed=seed_triple[1]
-		init_seed=seed_triple[2]
-		#Define a data_run_object. Save this instead of the dictionary.
-		args = TrainArgs(
-			epochs=epochs,
-			lr=learning_rate,
-			weight_decay=weight_decay, # 0.001,
-			weight_multiplier=weight_multiplier,
-			dropout_prob=dropout_prob,
-			data_seed=data_seed,
-			sgd_seed=sgd_seed,
-			init_seed=init_seed,
-			device=device,
-			grok=grok,
-			hiddenlayers=hiddenlayers,
-			conv_channels=conv_channels,
-			test_size=test_size,
-			train_size=train_size,
-			train_fraction=train_fraction,
-			P=P,
-			batch_size=bs,
-			loss_criterion=loss_criterion
-			)
-		
-		params_dic={'weight_decay':weight_decay,'weight_multiplier':weight_multiplier,'learning_rate':learning_rate,'hidden_layers':hiddenlayers,'conv_channels':conv_channels,'train_size':train_size,'test_size':test_size,'dropout_p':dropout_prob}
-		save_object=seed_average_onerun(data_seed=args.data_seed,sgd_seed=args.sgd_seed,init_seed=args.init_seed,params_dic=params_dic)
-		save_object.trainargs=args
+	for i in range(len(data_seeds)):
+		data_seed=data_seeds[i]
+		for j in range(len(sgd_seeds)):
+			sgd_seed=sgd_seeds[j]
+			for k in  range(len(init_seeds)):
+				init_seed=init_seeds[k]
+				#Define a data_run_object. Save this instead of the dictionary.
+				args = TrainArgs(
+					epochs=epochs,
+					lr=learning_rate,
+					weight_decay=weight_decay, # 0.001,
+					weight_multiplier=weight_multiplier,
+					dropout_prob=dropout_prob,
+					data_seed=data_seeds[i],
+					sgd_seed=sgd_seeds[j],
+					init_seed=init_seeds[k],
+					device=device,
+					grok=grok,
+					hiddenlayers=hiddenlayers,
+					conv_channels=conv_channels,
+					test_size=test_size,
+					train_size=train_size,
+					train_fraction=train_fraction,
+					P=P,
+					batch_size=bs,
+					loss_criterion=loss_criterion
+					)
+				
+				params_dic={'weight_decay':weight_decay,'weight_multiplier':weight_multiplier,'learning_rate':learning_rate,'hidden_layers':hiddenlayers,'conv_channels':conv_channels,'train_size':train_size,'test_size':test_size,'dropout_p':dropout_prob}
+				save_object=seed_average_onerun(data_seed=args.data_seed,sgd_seed=args.sgd_seed,init_seed=args.init_seed,params_dic=params_dic)
+				save_object.trainargs=args
+				save_object.start_time=int(time.time())
+				if train_type=="Ising":
+					train_loader,test_loader=create_ising_dataset(data_seed=data_seed,train_size=train_size,test_size=test_size)
+				elif train_type=="Mod":
+					ma_dataset = ModularArithmeticDataset(args.P, args.data_seed,loss_criterion="MSE")
+					train_dataset, test_dataset = torch.utils.data.random_split(ma_dataset, [args.train_fraction, 1-args.train_fraction])
+					train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
+					test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
+				
+				save_object.train_loader=train_loader
+				save_object.test_loader=test_loader
+				if train_type=="Ising":
+					model=create_model(init_seed=init_seed,model_type="CNN")
+				elif train_type=="Mod":
+					model=create_model(init_seed=init_seed,model_type="ModMLP")
+				train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.train_size,one_run_object=save_object,train_type=train_type,loss_criterion="MSE")
+				
+				save_name=f'data_seed_{data_seed}_time_{int(time.time())}_train_{train_size}_wd_{weight_decay}_lr{learning_rate_input}'
+				run_folder=str(root)
+				# with open(str(root)+"/"+save_name, "wb") as dill_file:
+				#     dill.dump(save_object, dill_file)
+				try:
+					with open(str(root)+"/"+save_name, "wb") as dill_file:
+						torch.save(save_object, dill_file)
+				except Exception as e:
+					print(f"An error occurred during serialization: {e}")
+				print(str(root)+"/"+save_name)
 
-		#config_dict['modelinstance']=create_model(init_seed=init_seed,model_type="CNN")
-		
-		
-		save_object.start_time=int(time.time())
-		if train_type=="Ising":
-			train_loader,test_loader=create_ising_dataset(data_seed=data_seed,train_size=train_size,test_size=test_size)
-			
-		elif train_type=="Mod":
-			ma_dataset = ModularArithmeticDataset(args.P, args.data_seed,loss_criterion=loss_criterion)
-			
-			train_dataset, test_dataset = torch.utils.data.random_split(ma_dataset, [args.train_fraction, 1-args.train_fraction])
-
-			train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
-			test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
-		
-		
-
-
-
-		save_object.train_loader=train_loader
-		save_object.test_loader=test_loader
-		if train_type=="Ising":
-			model=create_model(init_seed=init_seed,model_type="CNN")
-		elif train_type=="Mod":
-			model=create_model(init_seed=init_seed,model_type="ModMLP")
-		
-
-		print(f'model {train_type}')
-		# Check if the instance has the _init_args attribute
-		if hasattr(model, '_init_args'):
-			print('attr')
-			#had to call 'args' 'margs' because of the other args!
-			# Extract the stored initialization arguments
-			margs, kwargs = model._init_args
-
-			# Reconstruct the configuration dictionary
-			config_dict = {**dict(zip(inspect.signature(model.__class__.__init__).parameters, margs)), **kwargs}
-			if 'self' in config_dict:
-				config_dict.pop('self')
-		else:
-			print("The instance was created before the decorator was added and does not have initialization arguments stored.")
-		
-		save_object.modelinstance=copy.deepcopy(model)
-		save_object.modelclass=model.__class__
-		save_object.modelconfig=config_dict
-		print(config_dict)
-		print(f'weight l2 norm: {calculate_l_n_norm(model,2)}')
-		
-
-		
-		
-
-		train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.train_size,one_run_object=save_object,train_type=train_type,loss_criterion="CrossEntropy",plot_as_train=(not cluster),config_dict=config_dict)
-		
-
-		
-		
-		save_name=f'grok_{grok_str}dataseed_{data_seed}_sgdseed_{sgd_seed}_initseed_{init_seed}_wd_{weight_decay}_wm_{weight_multiplier}_time_{int(time.time())}'
-		run_folder=str(root)
-		# with open(str(root)+"/"+save_name, "wb") as dill_file:
-		#     dill.dump(save_object, dill_file)
-		try:
-			with open(str(root)+"/"+save_name, "wb") as dill_file:
-				torch.save(save_object, dill_file)
-		except Exception as e:
-			print(f"An error occurred during serialization: {e}")
-		print(str(root)+"/"+save_name)
-	
-	# while True:
-	# 	time.sleep(10)
-	# 	print("Sleeping")
 
 
 

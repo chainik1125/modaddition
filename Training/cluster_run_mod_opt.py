@@ -522,7 +522,7 @@ class ModularArithmeticDataset(Dataset):
 		if self.loss_criterion=='MSE':
 			indices = torch.empty((self.P**2,self.P),dtype=torch.float32)
 		else:
-			indices=torch.empty((self.P**2),dtype=torch.LongTensor)
+			indices=torch.empty((self.P**2,), dtype=torch.long)
 		for i in torch.arange(self.P):
 			for j in torch.arange(self.P):
 				combined_idx = self.P*i + j
