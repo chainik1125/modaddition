@@ -1,4 +1,5 @@
-from data_objects import *
+import sys
+from Training import data_objects
 from cluster_run_average import TrainArgs
 from cluster_run_average import ModularArithmeticDataset
 import inspect
@@ -7,7 +8,12 @@ from activations_Ising import *
 #from cluster_run_bias import CNN_nobias
 import torch.nn.functional as F
 
-
+# import sys
+#sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code')
+# current_directory = os.getcwd()
+# print("Current working directory:", current_directory)
+# print(sys.path)
+exit()
 
 
 
