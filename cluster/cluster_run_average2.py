@@ -237,6 +237,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	epochs = epochs # how many runs through entire training data
 	save_models=True
 	save_interval=save_interval
+	
 	model=initial_model
 	training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')

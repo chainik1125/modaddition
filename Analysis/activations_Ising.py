@@ -1247,10 +1247,12 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
     parameters_to_prune=[]
     for _, module in model.named_modules():
         if isinstance(module, nn.Linear) or isinstance(module,nn.Conv2d):
+            print(module)
             # if isinstance(module,nn.Linear):
             #     if module.in_features==100 and module.out_features==2:
             #         continue
             parameters_to_prune.append((module,'weight'))
+    exit()
     #parameters_to_prune=[('conv_layers.0.weight','weight'),('conv_layers.3.weight','weight'),('fc_layers.0.weight','weight')]
     for percent in tqdm(pruning_percents,position=1,leave=False,disable=True):
         reset_to_original_weights(model, original_weights)
@@ -2344,8 +2346,8 @@ if __name__== "__main__":
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/grok_ising/clusterdata/grok_True_time_1714759182/data_seed_0_time_1714762834_train_500_wd_0.08_lr0.0001"
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/grok_ising/modular_arithmetic/reference/cluster_run/clusterdata4/hiddenlayer_[100]_desc_avgIsing/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_0.08_wm_1_time_1715789462"
 
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717357641"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717358876"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
 
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_True_standard_param.torch"#<--
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_False_standard_param.torch"
@@ -2439,7 +2441,7 @@ if __name__== "__main__":
 
     test=generate_test_set(dataset,1000)
     criterion=nn.CrossEntropyLoss()
-    epoch=1900
+    epoch=1100
     # learning_rate=single_run_ng.trainargs.lr
     # weight_decay=single_run_ng.trainargs.weight_decay
     # print(single_run.modelclass)
@@ -2584,6 +2586,7 @@ if __name__== "__main__":
 
     #print('mag prune mod')
     #single_run.plot_traincurves(single_run_ng).show()
+    
     magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
     exit()
 

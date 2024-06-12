@@ -52,6 +52,8 @@ class seed_average_onerun():
         self.modelclass=None
         self.modelconfig=None
         self.modelinstance=None
+        self.iprs=None
+        self.l2norms=None
     #Now I want to write scripts for the analysis function.
     
     def make_loss_curves(self):

@@ -460,8 +460,8 @@ if __name__=="__main__":
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/ModAdd/ModAdd_512_grok_False.torch"
     
     #dynamical data
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717357641"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717358876"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
 
     #data_object_file_name="clusterdata/grok_False_time_1712763706_wm_1/data_seed_0_time_1712763732_train_100_wd_0.0_lr0.004"
     #data_object_file_name_ng=data_object_file_name#"clusterdata/grok_False_time_1712762395_wm_1/data_seed_0_time_1712762659_train_100_wd_0.0_lr0.001"
@@ -472,6 +472,14 @@ if __name__=="__main__":
         #single_run = dill.load(in_strm)
         single_run_ng = torch.load(in_strm,map_location=torch.device('cpu'))
 
+    
+    print(len(single_run_ng.iprs))
+    print(vars(single_run.trainargs))
+    print(vars(single_run_ng.trainargs))
+    exit()
+    single_run.traincurves_and_iprs(single_run_ng).show()
+    single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
+    exit()
 
     dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
     with open(dataset_filename, "rb") as handle:

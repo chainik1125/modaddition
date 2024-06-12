@@ -44,9 +44,9 @@ def update_html_content():
     js_refresh = b'<script>window.location.reload(true);</script>'
     html_content += js_refresh
 
-server_thread = threading.Thread(target=start_http_server)
-server_thread.daemon = True
-server_thread.start()
+# server_thread = threading.Thread(target=start_http_server)
+# server_thread.daemon = True
+# server_thread.start()
 
 # Open the browser window to display the HTML
 
