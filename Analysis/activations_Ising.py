@@ -1,4 +1,5 @@
 
+#export PYTHONPATH="${PYTHONPATH}:/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
 import os
 import sys
 import dill
@@ -27,15 +28,17 @@ import copy
 #import kaleido
 
 ################Seeds
-from data_objects import seed_average_onerun
-from cluster_run_average import TrainArgs
-from cluster_run_average import CNN
-from cluster_run_average import CNN_nobias
+from cluster.data_objects import seed_average_onerun
+from cluster.cluster_run_average import TrainArgs
+from cluster.cluster_run_average import CNN
+from cluster.cluster_run_average import CNN_nobias
 from contextlib import contextmanager
 import functools
-from cluster_run_average import ModularArithmeticDataset
-from cluster_run_average import Square, MLP
+from cluster.cluster_run_average import ModularArithmeticDataset
+from cluster.cluster_run_average import Square, MLP
 import glob
+
+
 
 
 dtype=torch.float32
@@ -1252,7 +1255,7 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
             #     if module.in_features==100 and module.out_features==2:
             #         continue
             parameters_to_prune.append((module,'weight'))
-    exit()
+    
     #parameters_to_prune=[('conv_layers.0.weight','weight'),('conv_layers.3.weight','weight'),('fc_layers.0.weight','weight')]
     for percent in tqdm(pruning_percents,position=1,leave=False,disable=True):
         reset_to_original_weights(model, original_weights)
@@ -1338,6 +1341,7 @@ def load_model(runobject,epoch):
     learning_rate=runobject.trainargs.lr
     weight_decay=runobject.trainargs.weight_decay
     model=runobject.modelclass(**runobject.modelconfig)
+    model=runobject.modelinstance
     model_dic=copy.deepcopy(runobject.models[epoch]['model'])
     result=model.load_state_dict(model_dic,strict=False)
     if len(result.missing_keys)>0 or len(result.unexpected_keys)>0:
@@ -1583,7 +1587,7 @@ def find_compression_factor2(grokked_pruning_acc,non_grokked_pruning_acc,percent
         closest_sizes=np.array(find_max_x2_with_flat_result(non_grok_curve,grok_curve))
 
         print(f' closest sizes reversed {closest_sizes}')
-        exit()
+        
         compression_factors=(1-closest_sizes[:,1])/(1-closest_sizes[:,-1])
     print(f' compression factors {compression_factors}')
         #accuracies=np.stack(closest_sizes[:,0],closest_sizes[:,1])
@@ -2374,6 +2378,11 @@ if __name__== "__main__":
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdata4/grok_False_time_1715457565_hiddenlayer_[100]/data_seed_0_time_1715458561_train_500_wd_0.05_lr1e-06"
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdata4/grok_False_time_1715457544_hiddenlayer_[100]/data_seed_0_time_1715459206_train_500_wd_0.05_lr1e-05"
     
+    #mod add exception
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_5.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_5.0_time_1719402719"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_1.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_1.0_time_1719492989"
+
+
     dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
     
     
@@ -2441,7 +2450,7 @@ if __name__== "__main__":
 
     test=generate_test_set(dataset,1000)
     criterion=nn.CrossEntropyLoss()
-    epoch=1100
+    epoch=980
     # learning_rate=single_run_ng.trainargs.lr
     # weight_decay=single_run_ng.trainargs.weight_decay
     # print(single_run.modelclass)
@@ -2585,7 +2594,9 @@ if __name__== "__main__":
         return fig
 
     #print('mag prune mod')
-    #single_run.plot_traincurves(single_run_ng).show()
+    
+    
+    single_run.traincurves_and_iprs(single_run_ng).show()
     
     magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
     exit()

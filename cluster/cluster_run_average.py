@@ -214,6 +214,35 @@ class TrainingPlot:
 			if self.plot_enabled:
 				pass  # Plotly automatically handles closing the plot
 
+def extract_top_percent(tensor, percent):
+    # Ensure the tensor is flattened
+    tensor = tensor.view(-1)
+    
+    # Calculate the number of elements to keep (top percent)
+    num_elements = int(percent * len(tensor))
+    
+    # Use torch.topk to get the top elements
+    top_values, _ = torch.topk(tensor, num_elements, sorted=False,largest=True)
+    
+    return top_values
+
+
+def calculate_ipr(model,r,weight_share=1):
+	with torch.no_grad():
+		flat_parameters = [param.view(-1) for param in model.parameters()]
+		flat_weights = torch.cat(flat_parameters)
+		#flat_weights=extract_top_percent(flat_weights,weight_share)
+		ipr_denom=torch.sqrt(torch.sum(flat_weights**2))**(2*r)
+		ipr_num=torch.sum(np.abs(flat_weights)**(2*r))
+		ipr=ipr_num/ipr_denom
+		return ipr.item()
+
+def calculate_weight_norm(model,n):
+	with torch.no_grad():
+		flat_parameters = [param.view(-1) for param in model.parameters()]
+		flat_weights = torch.cat(flat_parameters)
+		weight_norm=torch.sum(flat_weights**n)
+		return weight_norm
 def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
 	plot_interval=50
 	start_time = timer()
@@ -221,9 +250,11 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	epochs = epochs # how many runs through entire training data
 	save_models=True
 	save_interval=save_interval
-	
+	fix_norm=False
 	model=initial_model
-	training_plot = TrainingPlot(plot_as_train)
+	print(f'l2 norm: {calculate_weight_norm(model,2)}')
+	
+	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 	
 		
@@ -246,9 +277,12 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		test_losses = []
 		train_accuracy = []
 		test_accuracy = []
+		iprs=[]
+		norms=[]
 	else:
 		print("Starting additional training")
 		epochs = 2900
+	norm=np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
 	for i in tqdm(range(epochs)):
 		train_correct = 0
 		test_correct = 0
@@ -292,13 +326,24 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
 				else:
 					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
+				if fix_norm:
+					with torch.no_grad():
+						new_norm = np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
+						for param in model.parameters():
+							param.data *= norm / new_norm
 			
 			train_loss /= len(train_loader)
 			train_losses.append(train_loss)
 			train_acc /= len(train_dataset)
 			train_accuracy.append(train_acc)
 					
-
+		model_ipr2=calculate_ipr(model,2,1)
+		model_ipr4=calculate_ipr(model,4,1)
+		model_ipr_05=calculate_ipr(model,0.5,1)
+		iprs.append([model_ipr2,model_ipr4,model_ipr_05])
+		l2norm=calculate_weight_norm(model,2)
+		norms.append(l2norm)
+		
 			
 
 			# Tally the number of correct predictions per epoch
@@ -342,11 +387,11 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				test_accuracy.append(test_acc)
 
 
-		epochs_plot=list(range(len(test_accuracy)))
-		first=True
-		if i%plot_interval==0:
-			training_plot.update(epochs_plot, test_accuracy,train_accuracy,test_losses,train_losses,first)
-			first=False
+		#epochs_plot=list(range(len(test_accuracy)))
+		#first=True
+		# if i%plot_interval==0:
+		# 	training_plot.update(epochs_plot, test_accuracy,train_accuracy,test_losses,train_losses,first)
+		# 	first=False
 					
 
 
@@ -392,14 +437,19 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				print(12*" " + f"test loss: {test_loss:.4f}, accuracy: {test_accuracy[-1]:.4f}" )
 				print(60*"*")
 
-	training_plot.close()#Not necessary in plotly I think, but just in case
+	#training_plot.close()#Not necessary in plotly I think, but just in case
 	print(f'\nDuration: {timer() - start_time:.0f} seconds') # print the time elapsed
 
 	one_run_object.train_losses=train_losses
 	one_run_object.test_losses=test_losses
 	one_run_object.train_accuracies=train_accuracy
 	one_run_object.test_accuracies=test_accuracy
-	plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
+	one_run_object.iprs=iprs
+	one_run_object.l2norms=norms
+
+	if cluster==False:
+		# plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
+		one_run_object.traincurves_and_iprs(one_run_object).show()
 
 
 	# data = ["data[1] is of form [train_loss, test_loss], [train_acc, test_acc]", [[train_losses, test_losses], [train_accuracy, test_accuracy]]]
@@ -578,12 +628,14 @@ class MLP(nn.Module):
 		self.model = nn.Sequential(*layers)
 
 		# if weight_multiplier != 1:#I think this is redundant
-		with torch.no_grad():
-			for param in self.parameters():
-				param.data = weight_multiplier * param.data
+
 
 		self.optimizer = optimizer(params=self.parameters(), lr=learning_rate, weight_decay=weight_decay)
 		self.init_weights()
+
+		with torch.no_grad():
+			for param in self.parameters():
+				param.data = weight_multiplier * param.data
 
 	def forward(self, x):
 		x = self.model(x)
@@ -729,8 +781,9 @@ if __name__ == '__main__':
 	learning_rate_input=float(sys.argv[11+cluster_array])/(10**4)
 	train_type=sys.argv[12+cluster_array]#Is this mod addition or is this Ising
 	P=int(sys.argv[13+cluster_array])#Modulation
-	train_fraction=int(sys.argv[14+cluster_array])/100#train_fraction
-	cluster=bool(int(sys.argv[15+cluster_array]))
+	train_fraction=float(sys.argv[14+cluster_array])/100#train_fraction
+	weight_multiplier=float(sys.argv[15+cluster_array])
+	cluster=bool(int(sys.argv[16+cluster_array]))
 	
 	
 	print(f" seeds: {data_seeds}, sgd_seeds: {sgd_seeds},init_seeds {init_seeds}")
@@ -750,23 +803,25 @@ if __name__ == '__main__':
 	if grok:
 		#learning_rate=learning_rate
 		weight_decay=weight_decay
-		weight_multiplier=1000
+		weight_multiplier=weight_multiplier#500
 
 	else:
 		#learning_rate=10**-4
 		weight_decay=weight_decay
-		weight_multiplier=1
+		weight_multiplier=weight_multiplier#1
 	
 
 	dtype = torch.float32 # very important
 	# seed = seed # fixed random seed for reproducibility
 	device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu') # use GPU if available
+	print(f'device: {device}')
+	
 	example = False # dataset is MNIST example if True
 	ising = True # import ising dataset
 
 	# set functions for neural network
 	loss_criterion="CrossEntropy"
-	loss_fn = nn.CrossEntropyLoss   # 'MSELoss' or 'CrossEntropyLoss'
+	loss_fn = nn.MSELoss   # 'MSELoss' or 'CrossEntropyLoss'
 	optimizer_fn = torch.optim.Adam     # 'Adam' or 'AdamW' or 'SGD'
 	activation = nn.ReLU    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
@@ -783,15 +838,15 @@ if __name__ == '__main__':
 
 
 	#Train params
-	epochs=300
-	save_interval=100
+	epochs=2000
+	save_interval=20
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
 
 
 	
-	desc='test_moadadd'
-	root=f'../../large_files/clusterdata/hiddenlayer_{hiddenlayers}_desc_{desc}'
+	desc='opp_modadd'
+	root=f'../../large_files/oppositetest/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
 	
 	
 	os.makedirs(root,exist_ok=True)
@@ -846,6 +901,7 @@ if __name__ == '__main__':
 
 			train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
 			test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
+			
 		
 		
 
@@ -881,7 +937,7 @@ if __name__ == '__main__':
 		
 		
 
-		train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.train_size,one_run_object=save_object,train_type=train_type,loss_criterion="CrossEntropy",plot_as_train=(not cluster),config_dict=config_dict)
+		train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.train_size,one_run_object=save_object,train_type=train_type,loss_criterion=args.loss_criterion,plot_as_train=(not cluster),config_dict=config_dict)
 		
 
 		

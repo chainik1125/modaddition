@@ -1152,6 +1152,104 @@ class seed_average_onerun():
             count+=1
         return fig
     
+
+    def traincurves_and_iprs(self,non_grokked_object):
+        titles=[r'$\text{(a) Grokking accuracy in training}$',r'$\text{(b) Learning accuracy in training}$',r'$\text{(c) Grokking loss in training}$',r'$\text{(d) Learning loss in training}$']+[r'$\text{(e) Weight norm}$',r'$\text{(f) IPR r=2}$',r'$\text{(f) IPR r=4}$',r'$\text{(f) IPR r=1/2}$']
+        fig=make_subplots(rows=2,cols=4,subplot_titles=titles)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_accuracies))),y=self.train_accuracies,mode='lines',line=dict(color='red',dash='dash'),showlegend=True,name=r'$\text{Grokking train}$'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_accuracies))),y=self.test_accuracies,mode='lines',line=dict(color='red',dash='solid'),showlegend=True,name=r'$\text{Grokking test}$'),row=1,col=1)
+        #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(self.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=1, col=1)
+        fig.update_yaxes(title_text=r'$\text{Accuracy}$',row=1,col=1)
+        # fig.add_vrect(
+        #     x0=10000,  # Start of the region (on the x-axis)
+        #     x1=30000,  # End of the region (on the x-axis)
+        #     fillcolor="grey",  # Color of the rectangle
+        #     opacity=0.2,  # Opacity of the rectangle
+        #     layer="below",  # Draw below the data points
+        #     line_width=0,
+        #     row=1,
+        #     col=1  # No border line
+        #     )
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_accuracies))),y=non_grokked_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learning train}$'),row=1,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_accuracies))),y=non_grokked_object.test_accuracies,mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Learning test}$'),row=1,col=2)
+        fig.update_yaxes(title_text=r'$\text{Accuracy}$',row=1,col=2)
+        #losses
+        fig.add_trace(go.Scatter(x=list(range(len(self.train_losses))),y=self.train_losses,mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grokking train}$'),row=1,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_losses))),y=self.test_losses,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grokking test}$'),row=1,col=3)
+        #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(self.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=1, col=1)
+        fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=3)
+        # fig.add_vrect(
+        #     x0=10000,  # Start of the region (on the x-axis)
+        #     x1=30000,  # End of the region (on the x-axis)
+        #     fillcolor="grey",  # Color of the rectangle
+        #     opacity=0.2,  # Opacity of the rectangle
+        #     layer="below",  # Draw below the data points
+        #     line_width=0,
+        #     row=2,
+        #     col=1  # No border line
+        #     )
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=non_grokked_object.train_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=non_grokked_object.test_losses,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
+        fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=4)
+        
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.l2norms))),y=self.l2norms,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok weight norm}$'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.l2norms))),y=non_grokked_object.l2norms,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn weight norm}$'),row=2,col=1)
+        fig.update_yaxes(title_text=r'$\text{Weight norm}$',type='log',row=2,col=1)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.iprs))),y=np.array(self.iprs)[:,0],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok IPR r=2}$'),row=2,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.iprs))),y=np.array(non_grokked_object.iprs)[:,0],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn IPR r=2}$'),row=2,col=2)
+        fig.update_yaxes(title_text=r'$\text{IPR r=2}$',row=2,col=2)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.iprs))),y=np.array(self.iprs)[:,1],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok IPR r=4}$'),row=2,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.iprs))),y=np.array(non_grokked_object.iprs)[:,1],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn IPR r=4}$'),row=2,col=3)
+        fig.update_yaxes(title_text=r'$\text{IPR r=2}$',row=2,col=3)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.iprs))),y=np.array(self.iprs)[:,2],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok IPR r=1/2}$'),row=2,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.iprs))),y=np.array(non_grokked_object.iprs)[:,2],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn IPR r=1/2}$'),row=2,col=4)
+        fig.update_yaxes(title_text=r'$\text{IPR r=1/2}$',row=2,col=4)
+
+
+
+        fig.update_xaxes(title_text=r'$\text{Epoch}$')
+
+        fig.update_layout(
+            #title='Example Plot',
+            #legend=dict(
+            #    x=1,  # Position legend outside the plot area
+            #    xanchor='auto',  # Automatically determine the best horizontal position
+            #    y=1,  # Position at the top of the plot
+            #    yanchor='auto'  # Automatically determine the best vertical position
+            #),
+            margin=dict(  # Adjust margins to provide more space
+                l=20,  # Left margin
+                r=150,  # Right margin increased to prevent overlap
+                t=50,  # Top margin
+                b=20   # Bottom margin
+                ))
+        grids=False
+        for i in range(1,3):
+            for j in range(1,3):
+                fig.update_xaxes(showgrid=grids, row=i, col=j)  # Disable x-axis grid lines
+                fig.update_yaxes(showgrid=grids, row=i, col=j)  # Disable y-axis grid lines
+        #acc
+
+        #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(non_grokked_object.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=2, col=1)
+
+        # fig.update_xaxes(title_text="Epoch", row=1, col=1)
+        # fig.update_yaxes(title_text="Loss",type='log', row=1, col=1)
+        # fig.update_xaxes(title_text="Epoch", row=1, col=1)
+        # fig.update_yaxes(title_text="Loss",type='log', row=1, col=2)
+
+        # fig.update_xaxes(title_text="Epoch", row=2, col=1)
+        # fig.update_yaxes(title_text="Accuracy", row=2, col=1)
+
+        # fig.update_xaxes(title_text="Epoch", row=2, col=2)
+        # fig.update_yaxes(title_text="Accuracy", row=2, col=2)
+
+        fig.update_layout(title_text=f'Training curves: hidden layers={(self.trainargs.hiddenlayers,non_grokked_object.trainargs.hiddenlayers)},wd={self.trainargs.weight_decay,non_grokked_object.trainargs.weight_decay},wm={self.trainargs.weight_multiplier,non_grokked_object.trainargs.weight_multiplier},train size={(self.trainargs.train_size,non_grokked_object.trainargs.train_size)}, lr={(self.trainargs.lr,non_grokked_object.trainargs.lr)}')
+        return fig
     
 
     def correlation_epochs(self,non_grokked_object,sortby,neuron_index,images_tensor,feature_funcs,dataset):

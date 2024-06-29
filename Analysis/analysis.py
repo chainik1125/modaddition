@@ -1,19 +1,16 @@
 import sys
+
+sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code')
 from Training import data_objects
-from cluster_run_average import TrainArgs
-from cluster_run_average import ModularArithmeticDataset
+from Training.cluster_run_average import TrainArgs
+from Training.cluster_run_average import ModularArithmeticDataset
 import inspect
 import functools
 from activations_Ising import *
 #from cluster_run_bias import CNN_nobias
 import torch.nn.functional as F
 
-# import sys
-#sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code')
-# current_directory = os.getcwd()
-# print("Current working directory:", current_directory)
-# print(sys.path)
-exit()
+
 
 
 
@@ -448,6 +445,7 @@ def fit_piecewise_weights(run_object,start,end,n_parts):
 
 
 if __name__=="__main__":
+    print('herro')
     #No bias
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/grok_ising/clusterdata/grok_True_time_1714759182/data_seed_0_time_1714762834_train_500_wd_0.08_lr0.0001"
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/grok_ising/clusterdata/grok_False_time_1714759214/data_seed_0_time_1714762715_train_500_wd_0.05_lr0.0001"
@@ -469,8 +467,13 @@ if __name__=="__main__":
     data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
     data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
 
+    #mod add
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_6.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_6.0_time_1719495258"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_4.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_4.0_time_1719495786"
+
     #data_object_file_name="clusterdata/grok_False_time_1712763706_wm_1/data_seed_0_time_1712763732_train_100_wd_0.0_lr0.004"
     #data_object_file_name_ng=data_object_file_name#"clusterdata/grok_False_time_1712762395_wm_1/data_seed_0_time_1712762659_train_100_wd_0.0_lr0.001"
+    
     with open(data_object_file_name, 'rb') as in_strm:
         #single_run = dill.load(in_strm)
         single_run = torch.load(in_strm,map_location=torch.device('cpu'))
@@ -479,21 +482,148 @@ if __name__=="__main__":
         single_run_ng = torch.load(in_strm,map_location=torch.device('cpu'))
 
     
-    print(len(single_run_ng.iprs))
-    print(vars(single_run.trainargs))
-    print(vars(single_run_ng.trainargs))
-    exit()
-    single_run.traincurves_and_iprs(single_run_ng).show()
-    single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
-    exit()
+    
+    # print(len(single_run_ng.iprs))
+    # print(vars(single_run.trainargs))
+    # print(vars(single_run_ng.trainargs))
+    # exit()
+    # single_run.traincurves_and_iprs(single_run_ng).show()
+    # single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
+    
+
+    
 
     dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
     with open(dataset_filename, "rb") as handle:
         dataset = dill.load(handle)[1]
 
-    single_run.plot_traincurves(single_run_ng).show()
-    single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
-    exit()
+    # single_run.plot_traincurves(single_run_ng).show()
+    # single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
+    
+    
+    def open_files_in_leaf_directories(root_dir):
+        all_files=[]
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            # Check if the current directory is a leaf directory
+            if not dirnames:
+                for filename in filenames:
+                    file_path = os.path.join(dirpath, filename)
+                    try:
+                        with open(file_path, 'rb') as in_strm:
+                                single_run = torch.load(in_strm,map_location=device)
+                                                # Do something with the content if needed
+                                all_files.append(single_run)
+                    except Exception as e:
+                        print(f"Failed to open {file_path}: {e}")
+        return all_files
+
+    def share_of_zero_weights(runobject):
+        epochs=runobject.model_epochs()
+        # print(runobject.models[epochs[-1]]['model'].keys())
+        # tempmodel=runobject.modelclass(**runobject.modelconfig)
+        # tempmodel.load_state_dict(runobject.models[epochs[-1]]['model'])
+        statedic=runobject.models[epochs[-1]]['model']
+        flattened_weights=torch.cat([torch.abs(torch.flatten(statedic[key])) for key in statedic.keys()])
+        meanweight=torch.mean(flattened_weights).item()
+        threshold=meanweight*(0.001)
+        zeropeakshare=torch.sum(flattened_weights<threshold).item()/len(flattened_weights)
+        maxweight=torch.max(flattened_weights).item()
+        # print(f' multiplier {runobject.trainargs.weight_multiplier}')
+        # print(f' zero peak share of weights: {zeropeakshare}')
+        # print(flattened_weights.shape)
+        # print(f'initial multiplier: ')
+        # print(f'mean weight {torch.mean(flattened_weights).item()}')
+        # print(f'max weight {torch.max(flattened_weights).item()}')
+        # print(f'min weight {torch.min(flattened_weights).item()}')
+        #runobject.weights_histogram_epochs2(runobject)
+        return zeropeakshare,maxweight
+    
+    foldername_seedaverage='/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/fixednorm3'
+    all_files=open_files_in_leaf_directories(foldername_seedaverage)
+    print(all_files[0].trainargs)
+    print(single_run.trainargs)
+    print(single_run_ng.trainargs)
+    
+    # print(f'unequal args')
+    # for arg in vars(all_files[0].trainargs).keys():
+    #     if vars(all_files[0].trainargs)[arg]!=vars(single_run.trainargs)[arg]:
+    #         print(f'Arg: {arg} cluster arg {vars(all_files[0].trainargs)[arg]}; single arg {vars(single_run.trainargs)[arg]}')
+    
+    # exit()
+
+
+    print('cluster train args')
+    for i in range(len(all_files)):
+        if all_files[i].trainargs.weight_multiplier > 1:
+            # print(all_files[i].trainargs.weight_multiplier)
+            # print(all_files[i].trainargs)
+            # print(all_files[i].l2norms[-1])
+            # print(single_run.trainargs)
+            # fig=make_subplots(rows=1,cols=1)
+            # fig.add_trace(go.Scatter(x=list(range(len(all_files[i].l2norms))),y=np.array(all_files[i].l2norms)),row=1,col=1)
+            # fig.show()
+            
+
+            fig=all_files[i].plot_traincurves(all_files[i])
+            fig.update_layout(title_text=f'weight multiplier {all_files[i].trainargs.weight_multiplier}')
+            #fig.show()
+    
+    #single_run.plot_traincurves(single_run_ng).show()
+    #You should plot alongside the Ising and you'll see it's basically the same.
+    print('all files length: ',len(all_files))
+    maxaccuracies=[]
+    minlosses=[]
+    multiplier=[]
+    for file in all_files:
+        print(f'first norm {file.l2norms[0]}',f'last norm {file.l2norms[-1]}')
+        maxaccuracies.append(max(file.test_accuracies))
+        minlosses.append(min(file.test_losses))
+        multiplier.append(file.trainargs.weight_multiplier)
+    
+    fig=make_subplots(rows=1,cols=2)
+    fig.add_trace(go.Scatter(x=multiplier,y=maxaccuracies,name='Max accuracy',mode='markers',marker=dict(color='red')),row=1,col=1)
+    fig.add_trace(go.Scatter(x=multiplier,y=minlosses,name='Min losses',mode='markers',marker=dict(color='red')),row=1,col=2)
+
+    #fig.show()
+    
+
+
+    minlosses_tests=[]
+    minlosses_train=[]
+    norms=[]
+    zeropeakshare=[]
+    maxweights=[]
+    for file in all_files:
+        print(f'first norm {file.l2norms[0]}',f'last norm {file.l2norms[-1]}')
+        first=True
+        if first:
+            scalefactor=file.trainargs.weight_multiplier/file.l2norms[-1]
+            first=False
+        
+        minlosses_tests.append(min(file.test_losses))
+        minlosses_train.append(min(file.train_losses))
+        norms.append(file.l2norms[-1]*scalefactor)
+        zeropeak,maxweight=share_of_zero_weights(file)
+        zeropeakshare.append(zeropeak)
+        maxweights.append(maxweight)
+        
+    
+    # print(len(minlosses_train))
+    # print(len(minlosses_tests))
+    # print(len(norms))
+    # print(minlosses_train)
+    # exit()
+    fig=make_subplots(rows=2,cols=1,subplot_titles=['LU'],specs=[[{}],[{"secondary_y": True}]])
+    
+    fig.add_trace(go.Scatter(x=norms,y=minlosses_tests,name='Min test loss',mode='markers',marker=dict(color='red')),row=1,col=1)
+    fig.add_trace(go.Scatter(x=norms,y=np.array(minlosses_train)+10**-15,name='Min train loss',mode='markers',marker=dict(color='blue')),row=1,col=1)
+    fig.update_xaxes(title_text="Norm", row=1, col=1)
+    fig.update_yaxes(title_text="Minimum Loss",type='log',row=1, col=1)
+    fig.add_trace(go.Scatter(x=norms,y=zeropeakshare,name='Zero peak share',mode='markers',marker=dict(color='green')),row=2,col=1)
+    #fig.add_trace(go.Scatter(x=norms,y=maxweights,name='Max weight',mode='markers',marker=dict(color='orange',symbol='square')),secondary_y=True,row=1,col=2)
+    fig.update_yaxes(title_text="Share of zero weights", row=2, col=1)
+    fig.update_xaxes(title_text="Norms", row=2, col=1)
+    fig.show()
 
     exit()
     # fig=make_subplots(rows=1,cols=1)
