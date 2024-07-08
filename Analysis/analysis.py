@@ -438,7 +438,21 @@ def fit_piecewise_weights(run_object,start,end,n_parts):
         ys.append(y_ep)
     return fit_ys,line_values,xs,ys
 
-
+def open_files_in_leaf_directories(root_dir):
+    all_files=[]
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Check if the current directory is a leaf directory
+        if not dirnames:
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+                try:
+                    with open(file_path, 'rb') as in_strm:
+                            single_run = torch.load(in_strm,map_location=device)
+                                            # Do something with the content if needed
+                            all_files.append(single_run)
+                except Exception as e:
+                    print(f"Failed to open {file_path}: {e}")
+    return all_files
 
 
 
@@ -464,12 +478,12 @@ if __name__=="__main__":
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/ModAdd/ModAdd_512_grok_False.torch"
     
     #dynamical data
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
+    #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
+    #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
 
     #mod add
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_6.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_6.0_time_1719495258"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_4.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_4.0_time_1719495786"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1000.0/grok_Falsedataseed_4_sgdseed_4_initseed_4_wd_3e-05_wm_1000.0_time_1719694717"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_4.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_4.0_time_1719656301"
 
     #data_object_file_name="clusterdata/grok_False_time_1712763706_wm_1/data_seed_0_time_1712763732_train_100_wd_0.0_lr0.004"
     #data_object_file_name_ng=data_object_file_name#"clusterdata/grok_False_time_1712762395_wm_1/data_seed_0_time_1712762659_train_100_wd_0.0_lr0.001"
@@ -481,7 +495,8 @@ if __name__=="__main__":
         #single_run = dill.load(in_strm)
         single_run_ng = torch.load(in_strm,map_location=torch.device('cpu'))
 
-    
+    single_run.traincurves_and_iprs(single_run_ng).show()
+    exit()
     
     # print(len(single_run_ng.iprs))
     # print(vars(single_run.trainargs))
@@ -501,21 +516,7 @@ if __name__=="__main__":
     # single_run.weights_histogram_epochs2(non_grokked_object=single_run_ng).show()
     
     
-    def open_files_in_leaf_directories(root_dir):
-        all_files=[]
-        for dirpath, dirnames, filenames in os.walk(root_dir):
-            # Check if the current directory is a leaf directory
-            if not dirnames:
-                for filename in filenames:
-                    file_path = os.path.join(dirpath, filename)
-                    try:
-                        with open(file_path, 'rb') as in_strm:
-                                single_run = torch.load(in_strm,map_location=device)
-                                                # Do something with the content if needed
-                                all_files.append(single_run)
-                    except Exception as e:
-                        print(f"Failed to open {file_path}: {e}")
-        return all_files
+
 
     def share_of_zero_weights(runobject):
         epochs=runobject.model_epochs()
@@ -538,12 +539,12 @@ if __name__=="__main__":
         #runobject.weights_histogram_epochs2(runobject)
         return zeropeakshare,maxweight
     
-    foldername_seedaverage='/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/fixednorm3'
+    foldername_seedaverage='/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/oppositetest'
     all_files=open_files_in_leaf_directories(foldername_seedaverage)
     print(all_files[0].trainargs)
-    print(single_run.trainargs)
-    print(single_run_ng.trainargs)
-    
+    print(all_files[0].trainargs)
+
+    exit()
     # print(f'unequal args')
     # for arg in vars(all_files[0].trainargs).keys():
     #     if vars(all_files[0].trainargs)[arg]!=vars(single_run.trainargs)[arg]:

@@ -2350,8 +2350,8 @@ if __name__== "__main__":
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/grok_ising/clusterdata/grok_True_time_1714759182/data_seed_0_time_1714762834_train_500_wd_0.08_lr0.0001"
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/grok_ising/modular_arithmetic/reference/cluster_run/clusterdata4/hiddenlayer_[100]_desc_avgIsing/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_0.08_wm_1_time_1715789462"
 
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
+    #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_500.0_time_1717370830"
+    #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
 
     #data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_True_standard_param.torch"#<--
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/AFinalData/LossCurves/grok_False_standard_param.torch"
@@ -2450,7 +2450,7 @@ if __name__== "__main__":
 
     test=generate_test_set(dataset,1000)
     criterion=nn.CrossEntropyLoss()
-    epoch=980
+    epoch=1980
     # learning_rate=single_run_ng.trainargs.lr
     # weight_decay=single_run_ng.trainargs.weight_decay
     # print(single_run.modelclass)
@@ -2523,6 +2523,7 @@ if __name__== "__main__":
     #     print(f'seed {seed}')
     #     magnitude_prune_prod(grokked_object=seed_dic[seed][0],non_grokked_object=seed_dic[seed][1],pruning_percents=np.linspace(0.5,1,25),layers_pruned=['conv_layers.0','conv_layers.3','fc_layers.0'],fig=None,epoch=epoch).show()
     
+    #decorator attempt
 
     
     def magnitude_prune_prod_mod(grokked_object,non_grokked_object,pruning_percents,layers_pruned,fig,epoch):
@@ -2592,10 +2593,149 @@ if __name__== "__main__":
 
 
         return fig
+    
+    from functools import wraps
+    from analysis import open_files_in_leaf_directories
+    
+    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_500.0"
+    nogrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0"
+    grok_runs=open_files_in_leaf_directories(grok_foldername_seedaverage)
+    grok_run=grok_runs[1]
+    del grok_runs
+    nogrok_runs=open_files_in_leaf_directories(nogrok_foldername_seedaverage)
+    nogrok_run=nogrok_runs[1]
+    del nogrok_runs
+    grok_run.traincurves_and_iprs(nogrok_run).show()
+    exit()
 
-    #print('mag prune mod')
+    def avg_decorator(non_grokked_folder):
+        def inside_function(func):
+            @wraps(func)
+            def wrapped_function(*args,**kwargs):
+                if type(kwargs['run_object'])==str:
+                    all_files_grok=open_files_in_leaf_directories(kwargs['run_object'])
+                    all_files_nogrok=open_files_in_leaf_directories(non_grokked_folder)
+                    print(f" len grok files {len(all_files_grok)}")
+                    print(f" len no grok files {len(all_files_nogrok)}")
+                    
+                    def get_averages(files):
+                        all_layer=[]
+                        by_layer=[]
+                        for file in files:
+                            kwargs['run_object']=file
+                            result=func(*args,**kwargs)
+                            all_layer.append(result[1])
+                            by_layer.append(result[2])
+                        all_layer=np.mean(np.array(all_layer),axis=0)
+                        by_layer=np.mean(np.array(by_layer),axis=0)
+                        return all_layer,by_layer
+                    
+                    grok_avgs=get_averages(all_files_grok)
+                    nogrok_avgs=get_averages(all_files_nogrok)
+                    
+
+                    
+                    print(f'function output (percent pruned, grok_all_layer)')
+                    return kwargs['pruning_percents'],grok_avgs,nogrok_avgs
+                else:
+                    return func(*args,**kwargs)
+                #If you want the args you can just call args!
+                # print(f' args: {args}')
+                # print(f' args: {kwargs}')
+                # return func(*args,**kwargs)
+            return wrapped_function
+        return inside_function
+        
+
+    def plot_dec(plot):
+        def inside_function(func):
+            @wraps(func)
+            def wrapped_function(*args,**kwargs):
+                if plot:
+                    fig=make_subplots(rows=2,cols=3)
+                    percents,grok_avgs,non_grok_avgs=func(*args,**kwargs)
+                    
+                    
+                    print(f'grok_avgs {grok_avgs[0].shape}')
+                    print(f'grok_avgs {grok_avgs[1].shape}')
+
+                    grok_accs_all=grok_avgs[0][0]
+                    grok_losses_all=grok_avgs[0][1]
+                    grok_accs_bl=grok_avgs[1][:,0,:]
+                    grok_losses_bl=grok_avgs[1][:,1,:]
+                    
+                    #print(f"grok averages 1 shape {grok_avgs[1][:,:,0]}")
+                    #exit()
+
+
+                    nogrok_accs_all=non_grok_avgs[0][0]
+                    nogrok_losses_all=non_grok_avgs[0][1]
+                    nogrok_accs_bl=non_grok_avgs[1][:,0,:]
+                    nogrok_losses_bl=non_grok_avgs[1][:,1,:]
+                    
+
+                    
+                    fig=make_subplots(rows=2,cols=1+len(grok_losses_bl),subplot_titles=[r'$\text{(a) Pruning - whole network}$',r'$\text{(b) Pruning - first convolutional layer}$',r'$\text{(c) Pruning - second convolutional layer}$',r'$\text{(d) Pruning - fully connected layer}$',r'$\text{(e) Pruning - whole network}$',r'$\text{(f) Pruning - first convolutional layer}$',r'$\text{(g) Pruning - second convolutional layer}$',r'$\text{(h) Pruning - fully connected layer}$'])
+
+                    fig.add_trace(go.Scatter(x=percents,y=grok_accs_all,marker=dict(color='red'),name='Grokking',showlegend=True),row=1,col=1)
+                    fig.add_trace(go.Scatter(x=percents,y=nogrok_accs_all,marker=dict(color='blue'),name='Learning',showlegend=True),row=1,col=1)
+                    fig.add_trace(go.Scatter(x=percents,y=grok_losses_all,marker=dict(color='red'),name='Grokking',showlegend=False),row=2,col=1)
+                    fig.add_trace(go.Scatter(x=percents,y=nogrok_losses_all,marker=dict(color='blue'),name='Learning',showlegend=False),row=2,col=1)    
+
+            
+                    for i in range(len(grok_losses_bl)):
+                        fig.add_trace(go.Scatter(x=percents,y=grok_accs_bl[i],marker=dict(color='red'),name='Grokking',showlegend=False),row=1,col=2+i)
+                        fig.add_trace(go.Scatter(x=percents,y=nogrok_accs_bl[i],marker=dict(color='blue'),name='Learning',showlegend=False),row=1,col=2+i)
+                        showleg=False
+                        fig.add_trace(go.Scatter(x=percents,y=grok_losses_bl[i],marker=dict(color='red'),name='Grok',showlegend=False),row=2,col=2+i)
+                        fig.add_trace(go.Scatter(x=percents,y=nogrok_losses_bl[i],marker=dict(color='blue'),name='Grok',showlegend=False),row=2,col=2+i)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$",row=1,col=1)
+                        fig.update_yaxes(title_text=r"$\text{Accuracy}$", row=1, col=1)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$", row=2, col=1)
+                        fig.update_yaxes(title_text=r"$\text{Loss}$",type='log', row=2, col=1)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$",row=1,col=2+i)
+                        fig.update_yaxes(title_text=r"$\text{Accuracy}$", row=1, col=2+i)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$", row=2, col=2+i)
+                        fig.update_yaxes(title_text=r"$\text{Loss}$",type='log', row=2, col=2+i)
+
+                    fig.update_layout(title_text=f"Wm grokked {grok_foldername_seedaverage.split('wm_')[-1]},WM Learn {nogrok_foldername_seedaverage.split('wm_')[-1]} ")                        
+                    fig.show()
+                    return fig
+                
+                
+                
+                #If you want the args you can just call args!
+                # print(f' args: {args}')
+                # print(f' args: {kwargs}')
+                # return func(*args,**kwargs)
+            return wrapped_function
+        return inside_function
+
+                
+    @plot_dec(True)
+    @avg_decorator(non_grokked_folder=nogrok_foldername_seedaverage)
+    def magnitude_prune_prod_mod_avg2(run_object,pruning_percents,layers_pruned,epoch):
+        original_model, original_model_dic=load_model(run_object,epoch)
+        original_weights = save_original_weights(original_model, layers_pruned)
+        
+
+        original_model, original_model_dic=load_model(run_object,epoch)
+
+        #accuracies and losses for all layers
+        accs_losses_alllayers=iterative_prune_from_original_mod(original_model, original_weights, layers_pruned, pruning_percents,'all_layers')
+        #reset model
+        original_model, original_model_dic=load_model(run_object,epoch)
+        #accuracies and losses for individual layers
+        accs_losses_bylayer=[iterative_prune_from_original_mod(original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+        
+
+        return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+
     
-    
+    print('func result')
+    percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch=epoch)
+
+    exit()
     single_run.traincurves_and_iprs(single_run_ng).show()
     
     magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
