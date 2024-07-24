@@ -815,7 +815,7 @@ if __name__ == '__main__':
 
 
 	#Train params
-	epochs=2000
+	epochs=5000
 	save_interval=100
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)

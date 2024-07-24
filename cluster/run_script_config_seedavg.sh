@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=lu_ma
+#SBATCH --job-name=mahwd
 #SBATCH --ntasks=1
 #SBATCH --time=06:00:00
 #SBATCH --partition=eng-research-gpu
 #SBATCH --account=bbradlyn-phys-eng
 #SBATCH --mail-user=dmanningcoe@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --array=1-30
+#SBATCH --array=1-19
 module load anaconda/2023-Mar/3
 module load cuda/11.7
 # nvcc --version
@@ -15,6 +15,7 @@ module load cuda/11.7
 sleep $(($SLURM_ARRAY_TASK_ID * 5))
 
 # Activate the Conda environment
+#--account=bbradlyn-phys-eng
 source activate torch_env
 
 config=config_average.txt

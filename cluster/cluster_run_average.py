@@ -73,7 +73,7 @@ def create_model(init_seed,model_type):
 						activation=nn.ReLU(), optimizer=torch.optim.SGD,
 						learning_rate=learning_rate, weight_decay=weight_decay, multiplier=weight_multiplier, dropout_prob=dropout_prob)
 	elif model_type=="ModMLP":
-		model=MLP(P=P,hidden=hiddenlayers,bias=True,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
+		model=MLP(P=P,hidden=hiddenlayers,learning_rate=learning_rate,bias=True,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
 		
 	
 	print(model)
@@ -252,8 +252,10 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	save_interval=save_interval
 	fix_norm=False
 	model=initial_model
+	start=time.time()
 	print(f'l2 norm: {calculate_weight_norm(model,2)}')
-	
+	end=time.time()
+	print(f'time to calculate l2 norm: {end-start}')
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 	
@@ -282,7 +284,8 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	else:
 		print("Starting additional training")
 		epochs = 2900
-	norm=np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
+	if fix_norm:
+		norm=np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
 	for i in tqdm(range(epochs)):
 		train_correct = 0
 		test_correct = 0
@@ -445,7 +448,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	one_run_object.train_accuracies=train_accuracy
 	one_run_object.test_accuracies=test_accuracy
 	one_run_object.iprs=iprs
-	one_run_object.l2norms=norms
+	one_run_object.norms=norms
 
 	if cluster==False:
 		# plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
@@ -820,8 +823,8 @@ if __name__ == '__main__':
 	ising = True # import ising dataset
 
 	# set functions for neural network
-	loss_criterion="CrossEntropy"
-	loss_fn = nn.MSELoss   # 'MSELoss' or 'CrossEntropyLoss'
+	loss_criterion="CrossEntropy" # 'MSE' or 'CrossEntropy'
+	loss_fn = nn.CrossEntropyLoss   # 'MSELoss' or 'CrossEntropyLoss'
 	optimizer_fn = torch.optim.Adam     # 'Adam' or 'AdamW' or 'SGD'
 	activation = nn.ReLU    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
@@ -838,16 +841,18 @@ if __name__ == '__main__':
 
 
 	#Train params
-	epochs=2000
-	save_interval=20
+	epochs=5000
+	save_interval=200
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
 
 
 	
-	desc='opp_modadd'
-	root=f'../../large_files/oppositetest/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
-	
+	desc='modadd'
+	if cluster==False:
+		root=f'../../large_files/modaddwd_3e-4/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
+	else:
+		root=f'../../large_files/modaddwd_3e-4/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
 	
 	os.makedirs(root,exist_ok=True)
 	print('makedirs called')

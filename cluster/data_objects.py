@@ -53,7 +53,7 @@ class seed_average_onerun():
         self.modelconfig=None
         self.modelinstance=None
         self.iprs=None
-        self.l2norms=None
+        self.norms=None
     #Now I want to write scripts for the analysis function.
     
     def make_loss_curves(self):
@@ -1194,8 +1194,8 @@ class seed_average_onerun():
         fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=4)
         
 
-        fig.add_trace(go.Scatter(x=list(range(len(self.l2norms))),y=self.l2norms,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok weight norm}$'),row=2,col=1)
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.l2norms))),y=non_grokked_object.l2norms,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn weight norm}$'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.norms))),y=self.norms,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok weight norm}$'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.norms))),y=non_grokked_object.norms,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn weight norm}$'),row=2,col=1)
         fig.update_yaxes(title_text=r'$\text{Weight norm}$',type='log',row=2,col=1)
 
         fig.add_trace(go.Scatter(x=list(range(len(self.iprs))),y=np.array(self.iprs)[:,0],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok IPR r=2}$'),row=2,col=2)
@@ -1248,7 +1248,7 @@ class seed_average_onerun():
         # fig.update_xaxes(title_text="Epoch", row=2, col=2)
         # fig.update_yaxes(title_text="Accuracy", row=2, col=2)
 
-        fig.update_layout(title_text=f'Training curves: hidden layers={(self.trainargs.hiddenlayers,non_grokked_object.trainargs.hiddenlayers)},wd={self.trainargs.weight_decay,non_grokked_object.trainargs.weight_decay},wm={self.trainargs.weight_multiplier,non_grokked_object.trainargs.weight_multiplier},train size={(self.trainargs.train_size,non_grokked_object.trainargs.train_size)}, lr={(self.trainargs.lr,non_grokked_object.trainargs.lr)}')
+        fig.update_layout(title_text=f'Training curves: hidden layers={(self.trainargs.hiddenlayers,non_grokked_object.trainargs.hiddenlayers)},wd={self.trainargs.weight_decay,non_grokked_object.trainargs.weight_decay},wm={self.trainargs.weight_multiplier,non_grokked_object.trainargs.weight_multiplier},train size={(self.trainargs.train_size,non_grokked_object.trainargs.train_size)},train frac={(self.trainargs.train_fraction,non_grokked_object.trainargs.train_fraction)}, lr={(self.trainargs.lr,non_grokked_object.trainargs.lr)}')
         return fig
     
 

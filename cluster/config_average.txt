@@ -1,31 +1,28 @@
 ArrayTaskID   data_seed_start    data_seed_end    sgd_seed_start    sgd_seed_end    init_seed_start    init_seed_end    wd     grok    train_size    hiddenlayer    learning_rate_input    train_type    P    train_fraction    weight_multiplier   
-1             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                1
-2             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                2
-3             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                3
-4             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                4
-5             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                5
-6             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                6
-9             2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                7
-10            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                9
-11            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                10
-12            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                15 
-13            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                20
-14            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                25
-15            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                30
-16            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                35
-17            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                40
-18            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                45
-19            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                50
-20            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                60
-22            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                65
-23            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                70
-24            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                75
-25            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                80
-26            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                85
-27            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                90
-28            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                95
-29            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                100
-30            2                  5                0                 1               0                  1                3e-5   False   500           512            50                     Mod           113  70                105
+1             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                1
+2             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                2
+3             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                3
+4             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                4
+5             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                5
+6             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                6
+9             2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                7
+10            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                9
+11            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                10
+12            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                15 
+13            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                20
+14            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                50
+15            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                100
+16            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                500
+17            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                0.5
+18            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                0.3
+19            2                  5                0                 1               0                  1                3e-4   False   500           512            50                     Mod           113  70                0.1
+
+
+
+
+
+
+
 
 
 
