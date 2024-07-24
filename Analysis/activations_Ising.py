@@ -4,6 +4,11 @@ import os
 import sys
 import dill
 
+# Add the path to the PYTHONPATH
+new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
+if new_path not in sys.path:
+    sys.path.append(new_path)
+    os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
 
 from dataclasses import dataclass
 from timeit import default_timer as timer
@@ -1310,7 +1315,7 @@ def iterative_prune_from_original_mod(model, original_weights, layers_to_prune, 
             #         continue
             parameters_to_prune.append((module,'weight'))
     #parameters_to_prune=[('conv_layers.0.weight','weight'),('conv_layers.3.weight','weight'),('fc_layers.0.weight','weight')]
-    for percent in tqdm(pruning_percents):
+    for percent in tqdm(pruning_percents,position=1,leave=False,disable=False):
         reset_to_original_weights(model, original_weights)
         if pruning_type=='local':
             for layer_name in layers_to_prune:
@@ -2379,8 +2384,8 @@ if __name__== "__main__":
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdata4/grok_False_time_1715457544_hiddenlayer_[100]/data_seed_0_time_1715459206_train_500_wd_0.05_lr1e-05"
     
     #mod add exception
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_5.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_5.0_time_1719402719"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/fixednorm3/hiddenlayer_[512]_desc_test_moadadd_wm_1.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_1.0_time_1719492989"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_10.0_time_1719661186"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_1.0_time_1719658785"
 
 
     dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
@@ -2450,7 +2455,7 @@ if __name__== "__main__":
 
     test=generate_test_set(dataset,1000)
     criterion=nn.CrossEntropyLoss()
-    epoch=1980
+    epoch=2000
     # learning_rate=single_run_ng.trainargs.lr
     # weight_decay=single_run_ng.trainargs.weight_decay
     # print(single_run.modelclass)
@@ -2595,18 +2600,326 @@ if __name__== "__main__":
         return fig
     
     from functools import wraps
-    from analysis import open_files_in_leaf_directories
     
-    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_500.0"
-    nogrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0"
-    grok_runs=open_files_in_leaf_directories(grok_foldername_seedaverage)
-    grok_run=grok_runs[1]
-    del grok_runs
-    nogrok_runs=open_files_in_leaf_directories(nogrok_foldername_seedaverage)
-    nogrok_run=nogrok_runs[1]
-    del nogrok_runs
-    grok_run.traincurves_and_iprs(nogrok_run).show()
-    exit()
+    
+    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0"
+    nogrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1.0"
+    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/modaddwd_3e-4"
+    #"/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest"
+
+    #grok_runs=open_files_in_leaf_directories(grok_foldername_seedaverage)
+    # grok_run=grok_runs[1]
+    # del grok_runs
+    # nogrok_runs=open_files_in_leaf_directories(nogrok_foldername_seedaverage)
+    # nogrok_run=nogrok_runs[1]
+    # del nogrok_runs
+    # grok_run.traincurves_and_iprs(nogrok_run).show()
+
+    def open_files_in_leaf_directories(root_dir):
+        all_files=[]
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            # Check if the current directory is a leaf directory
+            if not dirnames:
+                for filename in filenames:
+                    file_path = os.path.join(dirpath, filename)
+                    try:
+                        with open(file_path, 'rb') as in_strm:
+                                single_run = torch.load(in_strm,map_location=device)
+                                                # Do something with the content if needed
+                                all_files.append(single_run)
+                    except Exception as e:
+                        print(f"Failed to open {file_path}: {e}")
+        return all_files
+
+    # test_files=open_files_in_leaf_directories(all_run_folder)
+    # for file in test_files:
+    #     file.traincurves_and_iprs(file).show()
+    # exit()
+
+    #Let's write a cheeky little script to seperate out the files rather than doing it manually
+    import shutil
+    def seperate_files(folder,target1,target2):
+        
+        for dirpath, dirnames, filenames in os.walk(folder):
+            # Check if the current directory is a leaf directory
+            if not dirnames:
+                for filename in filenames:
+                    file_path = os.path.join(dirpath, filename)                    
+                    try:
+                        with open(file_path, 'rb') as in_strm:
+                                single_run = torch.load(in_strm,map_location=device)
+                                if single_run.trainargs.weight_decay==3e-04:
+                                    target=target1
+                                elif single_run.trainargs.weight_decay==3e-06:
+                                    target=target2
+                                else:
+                                    continue
+                                target=f'/hiddenlayer_[512]_desc_modadd_wm_{single_run.trainargs.weight_multiplier}'+file_path
+                                # Create all necessary subdirectories
+                                os.makedirs(os.path.dirname(target), exist_ok=True)
+                                shutil.move(file_path,target)
+                    except Exception as e:
+                        print(f"Failed to open {file_path}: {e}")
+        return None
+
+    # wd4folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/modadd_wd_e-4"
+    # wd6folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/modadd_wd_e-6"
+    # seperate_files(folder=all_run_folder,target1=wd4folder,target2=wd6folder)
+    # exit()
+
+    # all_files_grok=open_files_in_leaf_directories(all_run_folder)
+    # for file in all_files_grok:
+    #     if file.trainargs.weight_multiplier==5:
+    #         file.traincurves_and_iprs(file).show()
+    # exit()
+
+
+    # def move_files_to_parent(parent_folder):
+    #     for root, dirs, files in os.walk(parent_folder, topdown=False):
+    #         for name in files:
+    #             file_path = os.path.join(root, name)
+    #             new_path = os.path.join(parent_folder, name)
+    #             if os.path.exists(new_path):
+    #                 base, extension = os.path.splitext(new_path)
+    #                 counter = 1
+    #                 while os.path.exists(new_path):
+    #                     new_path = f"{base}_{counter}{extension}"
+    #                     counter += 1
+    #             shutil.move(file_path, new_path)
+    #         for name in dirs:
+    #             dir_path = os.path.join(root, name)
+    #             if not os.listdir(dir_path):  # Check if the directory is empty
+    #                 os.rmdir(dir_path)
+
+    # parent_folder = all_run_folder  # Replace this with your folder path
+    # move_files_to_parent(parent_folder)
+
+   
+
+
+    def prune_area():
+        def inside_function(func):
+            @wraps(func)
+            def wrapped_function(*args,**kwargs):
+                if type(kwargs['run_object'])==str:
+                    print(f'started opening files')
+                   
+                    
+                    all_files_grok=open_files_in_leaf_directories(kwargs['run_object'])
+                    print('example trainargs:')
+                    print(all_files_grok[0].trainargs)
+                    print(f" len grok files {len(all_files_grok)}")
+                    def get_areas(files):
+                        wm_dic={}
+                        wm_areas_dic={}
+                        all_layer=[]
+                        by_layer=[]
+                        print(f'started averaging')
+                        for file in tqdm(files,position=0,leave=True):
+                            if file.trainargs.weight_multiplier not in wm_dic.keys():
+                                wm_dic[file.trainargs.weight_multiplier]=([],[])
+                            kwargs['run_object']=file
+                            result=func(*args,**kwargs)
+                            all_layer.append(result[1])
+                            by_layer.append(result[2])
+                            wm_dic[file.trainargs.weight_multiplier][0].append(result[1])
+                            wm_dic[file.trainargs.weight_multiplier][1].append(result[2])
+                            # print(result[1])
+                            # print(np.array(result[1]).shape)
+                            # print(np.array(result[1])[0,:])
+                            # print(np.array(result[1])[1,:])
+                            # print(np.array(result[1])[:,:])
+                            # print(np.array(result[1])[:,:1][:,0])
+                            
+                            # print(f'result 1 shape: {np.array(result[1]).shape}')
+                            # print(f'result 2 shape: {np.array(result[2]).shape}')
+                            # print(f'result 2 shape array: {np.array(result[2])[:,:,0].shape}')
+                            #print(f'all_layer first attempt accs {np.array(result[1])[:,0]}')
+                            #print(f'all_layer first attempt {np.array(result[1])[:,0]}')
+                            
+                            # print(f'by_layer first attempt {np.array(result[2])[:,:,0]}')
+                            
+                        for key in wm_dic.keys():
+                            all_layer_areas=np.trapz(np.array(wm_dic[key][0]),x=kwargs['pruning_percents'])
+                            by_layer_areas=np.trapz(np.array(wm_dic[key][1]),x=kwargs['pruning_percents'])
+                            #all_layer_first=np.array(np.array(wm_dic[key][0])[:,:,:1])
+                            all_layer_first=np.array(wm_dic[key][0])[:,:,:1]
+                            all_layer_first=all_layer_first.reshape(len(all_layer_first),2)
+                            #print(all_layer_first.reshape(len(all_layer_first),2))
+
+                            #print(f'all layer first attempt accs {all_layer_first}')
+                            
+                            by_layer_first=np.array(np.array(wm_dic[key][1])[:,0,:])
+                            
+                            
+                            
+                            
+                            
+                            
+                            wm_areas_dic[key]=(all_layer_areas,by_layer_areas,all_layer_first,by_layer_first)
+                        
+                        
+                        #print(f'all layer shape {all_layer.shape}')
+                        #print(all_layer)
+                        #print('by layer')
+                        #print(f'by_layer shape {by_layer.shape}')
+                        
+                        return wm_areas_dic
+                    
+                    grok_areas=get_areas(all_files_grok)
+                    
+                    
+                    print(f'function output (percent pruned, grok_all_layer)')
+                    return grok_areas
+                else:
+                    return func(*args,**kwargs)
+                #If you want the args you can just call args!
+                # print(f' args: {args}')
+                # print(f' args: {kwargs}')
+                # return func(*args,**kwargs)
+            return wrapped_function
+        return inside_function
+
+    def plot_dec_areas(plot):
+        def inside_function(func):
+            @wraps(func)
+            def wrapped_function(*args,**kwargs):
+                if plot:
+                    fig1=make_subplots(rows=2,cols=2,specs=[[{"secondary_y": True} for _ in range(2)] for _ in range(2)],subplot_titles=[r'$\text{(a) Pruning whole network - area under accuracy curve (average) }$',r'$\text{(a) Pruning whole network - area under accuracy curve (individual) }$',r'$\text{(a) Pruning whole network - area under loss curve (average)}$',r'$\text{(a) Pruning whole network - area under loss curve (individual) }$'])
+                    areas=func(*args,**kwargs)
+                    all_layer_area_accs_arrays=[]
+                    all_layer_area_losses_arrays=[]
+                    by_layer_area_accs_arrays=[]
+                    by_layer_area_losses_arrays=[]
+                    all_layer_first_acc_arrays=[]
+                    all_layer_first_loss_arrays=[]
+                    by_layer_first_acc_arrays=[]
+                    by_layer_first_loss_arrays=[]
+                    multipliers=[]
+                    avg_multpliers=[]
+                    for key in areas.keys():
+                        all_layer_area_accs_arrays.append(areas[key][0][:,0])
+                        all_layer_area_losses_arrays.append(areas[key][0][:,1])
+                        by_layer_area_accs_arrays.append(areas[key][1][:,0,:])
+                        by_layer_area_losses_arrays.append(areas[key][1][:,1,:])
+                        multipliers.append(np.array([key]*len(areas[key][0][:,0])))
+                        avg_multpliers.append(key)
+                        all_layer_first_acc_arrays.append(areas[key][2][:,0])
+                        all_layer_first_loss_arrays.append(areas[key][2][:,1])
+                        #by_layer_first_arrays.append(areas[key][3])
+                    def flatten_array(arr):
+                        flattened = []
+                        for item in arr:
+                            if isinstance(item, np.ndarray):
+                                flattened.extend(flatten_array(item))
+                            else:
+                                flattened.append(item)
+                        return flattened
+                    
+                    plot_all_layers_accs=np.concatenate([flatten_array(arr) for arr in all_layer_area_accs_arrays])
+                    plot_all_layers_accs_average=np.array([np.mean(arr) for arr in all_layer_area_accs_arrays])
+                    plot_all_layers_losses=np.concatenate([flatten_array(arr) for arr in all_layer_area_losses_arrays])
+                    plot_all_layers_losses_average=np.array([np.mean(arr) for arr in all_layer_area_losses_arrays])
+                    plot_multiplier=np.concatenate([flatten_array(arr) for arr in multipliers])
+                    plot_all_layer_acc_first=np.concatenate([flatten_array(arr) for arr in all_layer_first_acc_arrays])
+                    plot_all_layer_acc_first_average=np.array([np.mean(arr) for arr in all_layer_first_acc_arrays])
+                    plot_all_layer_loss_first=np.concatenate([flatten_array(arr) for arr in all_layer_first_loss_arrays])
+                    plot_all_layer_loss_first_average=np.array([np.mean(arr) for arr in all_layer_first_loss_arrays])
+
+                    #plot_by_layer_first=np.concatenate([flatten_array(arr) for arr in all_layer_first])
+                    
+                    #fig1.add_trace(go.Scatter(x=np.array(multipliers).ravel(),y=np.array(all_layer_area_accs_arrays).ravel(),mode='markers',marker=dict(color='red'),name='Accuracy areas',showlegend=True),row=1,col=1)
+                    
+                    fig1.add_trace(go.Scatter(x=avg_multpliers,y=plot_all_layers_accs_average,mode='markers',marker=dict(color='red',symbol='cross'),name='Accuracy areas - average',showlegend=True),row=1,col=1)
+                    fig1.add_trace(go.Scatter(x=avg_multpliers,y=plot_all_layer_acc_first_average,mode='markers',marker=dict(color='black',symbol='diamond'),name='Start accuracy - average',showlegend=True),row=1,col=1,secondary_y=True)
+                    #fig1.add_trace(go.Scatter(x=avg_multpliers,y=plot_all_layers_accs_average,mode='markers',marker=dict(color='black',symbol='diamond'),name='End accuracy - average',showlegend=True),row=1,col=1,secondary_y=True)
+                    
+                    fig1.add_trace(go.Scatter(x=plot_multiplier,y=plot_all_layers_accs,mode='markers',marker=dict(color='red'),name='Accuracy areas',showlegend=True),row=1,col=2)
+                    #fig1.add_trace(go.Scatter(x=avg_multpliers,y=plot_all_layer_acc_first,mode='markers',marker=dict(color='black',symbol='diamond'),name='Start accuracy',showlegend=True),row=1,col=2,secondary_y=True)
+                    fig1.add_trace(go.Scatter(x=plot_multiplier,y=plot_all_layer_acc_first,mode='markers',marker=dict(color='black',symbol='diamond'),name='Start accuracy',showlegend=True),row=2,col=2,secondary_y=True)
+
+                    fig1.add_trace(go.Scatter(x=avg_multpliers,y=plot_all_layers_losses_average,mode='markers',marker=dict(color='blue',symbol='cross'),name='Accuracy areas - average',showlegend=True),row=2,col=1)
+                    fig1.add_trace(go.Scatter(x=avg_multpliers,y=plot_all_layer_acc_first_average,mode='markers',marker=dict(color='gold',symbol='diamond'),name='Start accuracy - average',showlegend=True),row=2,col=1,secondary_y=True)
+
+                    fig1.add_trace(go.Scatter(x=plot_multiplier,y=plot_all_layers_losses,mode='markers',marker=dict(color='blue'),name='Losses areas',showlegend=True),row=2,col=2)
+                    fig1.add_trace(go.Scatter(x=plot_multiplier,y=plot_all_layer_acc_first,mode='markers',marker=dict(color='gold',symbol='diamond'),name='Start accuracy',showlegend=True),row=2,col=2,secondary_y=True)
+                    
+                    fig1.update_yaxes(secondary_y=True,range=[0, 1.1])  # Replace min_value and max_value with your desired valuesrow=1,
+                    #fig1.update_yaxes(secondary_y=True,range=[0, 1.1],row=1,col=2)
+                    #fig1.update_yaxes(secondary_y=True,range=[min(plot_all_layer_loss_first_average), max(plot_all_layer_loss_first_average)],row=2,col=1)
+                    #fig1.update_yaxes(secondary_y=True,range=[min(plot_all_layer_loss_first), max(plot_all_layer_loss_first)],row=2,col=2)
+
+                    #fig1.add_trace(go.Scatter(x=np.array([[1,1],[2,2]]).ravel(),y=np.array([[2,2],[3,3]]).ravel(),mode='markers',marker=dict(color='blue'),name='Test',showlegend=True),row=2,col=1)
+                    return fig1
+                    
+                    # print(f'areas[0] shape {areas[0].shape}')
+                    # print(f'areas[1] shape {areas[1].shape}')
+
+
+                    # print(f'all layer area accs shape {all_layer_area_accs.shape}')
+                    # print(all_layer_area_accs)
+
+                    # print(f'all layer area losses shape {all_layer_area_losses.shape}')
+                    # print(all_layer_area_losses)
+
+                    # print(f'by layer area accs shape {by_layer_area_accs.shape}')
+                    # print(by_layer_area_accs)
+
+                    # print(f'by layer area losses shape {by_layer_area_losses.shape}')
+                    # print(by_layer_area_losses)
+
+                    
+
+
+
+
+                    
+                    #print(f"grok averages 1 shape {grok_avgs[1][:,:,0]}")
+                    #exit()
+
+
+                    nogrok_accs_all=non_grok_avgs[0][0]
+                    nogrok_losses_all=non_grok_avgs[0][1]
+                    nogrok_accs_bl=non_grok_avgs[1][:,0,:]
+                    nogrok_losses_bl=non_grok_avgs[1][:,1,:]
+                    
+
+                    
+                    fig=make_subplots(rows=2,cols=1+len(grok_losses_bl),subplot_titles=[r'$\text{(a) Pruning - whole network}$',r'$\text{(b) Pruning - first convolutional layer}$',r'$\text{(c) Pruning - second convolutional layer}$',r'$\text{(d) Pruning - fully connected layer}$',r'$\text{(e) Pruning - whole network}$',r'$\text{(f) Pruning - first convolutional layer}$',r'$\text{(g) Pruning - second convolutional layer}$',r'$\text{(h) Pruning - fully connected layer}$'])
+
+                    fig.add_trace(go.Scatter(x=percents,y=grok_accs_all,marker=dict(color='red'),name='Grokking',showlegend=True),row=1,col=1)
+                    fig.add_trace(go.Scatter(x=percents,y=nogrok_accs_all,marker=dict(color='blue'),name='Learning',showlegend=True),row=1,col=1)
+                    fig.add_trace(go.Scatter(x=percents,y=grok_losses_all,marker=dict(color='red'),name='Grokking',showlegend=False),row=2,col=1)
+                    fig.add_trace(go.Scatter(x=percents,y=nogrok_losses_all,marker=dict(color='blue'),name='Learning',showlegend=False),row=2,col=1)    
+
+            
+                    for i in range(len(grok_losses_bl)):
+                        fig.add_trace(go.Scatter(x=percents,y=grok_accs_bl[i],marker=dict(color='red'),name='Grokking',showlegend=False),row=1,col=2+i)
+                        fig.add_trace(go.Scatter(x=percents,y=nogrok_accs_bl[i],marker=dict(color='blue'),name='Learning',showlegend=False),row=1,col=2+i)
+                        showleg=False
+                        fig.add_trace(go.Scatter(x=percents,y=grok_losses_bl[i],marker=dict(color='red'),name='Grok',showlegend=False),row=2,col=2+i)
+                        fig.add_trace(go.Scatter(x=percents,y=nogrok_losses_bl[i],marker=dict(color='blue'),name='Grok',showlegend=False),row=2,col=2+i)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$",row=1,col=1)
+                        fig.update_yaxes(title_text=r"$\text{Accuracy}$", row=1, col=1)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$", row=2, col=1)
+                        fig.update_yaxes(title_text=r"$\text{Loss}$",type='log', row=2, col=1)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$",row=1,col=2+i)
+                        fig.update_yaxes(title_text=r"$\text{Accuracy}$", row=1, col=2+i)
+                        fig.update_xaxes(title_text=r"$\text{Percent pruned}$", row=2, col=2+i)
+                        fig.update_yaxes(title_text=r"$\text{Loss}$",type='log', row=2, col=2+i)
+
+                    fig.update_layout(title_text=f"Wm grokked {grok_foldername_seedaverage.split('wm_')[-1]},WM Learn {nogrok_foldername_seedaverage.split('wm_')[-1]} ")                        
+                    #fig.show()
+                    return fig
+                
+                
+                
+                #If you want the args you can just call args!
+                # print(f' args: {args}')
+                # print(f' args: {kwargs}')
+                # return func(*args,**kwargs)
+            return wrapped_function
+        return inside_function
 
     def avg_decorator(non_grokked_folder):
         def inside_function(func):
@@ -2730,11 +3043,33 @@ if __name__== "__main__":
         
 
         return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+    
+    @plot_dec_areas(True)
+    @prune_area()
+    def magnitude_prune_prod_mod_avg_areas(run_object,pruning_percents,layers_pruned,epoch):
+        original_model, original_model_dic=load_model(run_object,epoch)
+        original_weights = save_original_weights(original_model, layers_pruned)
+        
+
+        original_model, original_model_dic=load_model(run_object,epoch)
+
+        #accuracies and losses for all layers
+        accs_losses_alllayers=iterative_prune_from_original_mod(original_model, original_weights, layers_pruned, pruning_percents,'all_layers')
+        #reset model
+        original_model, original_model_dic=load_model(run_object,epoch)
+        #accuracies and losses for individual layers
+        accs_losses_bylayer=[iterative_prune_from_original_mod(original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+        
+
+        return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
 
     
     print('func result')
-    percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch=epoch)
-
+    #percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch=epoch)
+    #percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,5),layers_pruned=['model.0','model.2'],epoch=epoch)
+    
+    area_plot=magnitude_prune_prod_mod_avg_areas(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch)
+    area_plot.show()
     exit()
     single_run.traincurves_and_iprs(single_run_ng).show()
     

@@ -482,8 +482,8 @@ if __name__=="__main__":
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/clusterdata/hiddenlayer_[256]_desc_test_moadadd/grok_Truedataseed_0_sgdseed_0_initseed_0_wd_0.0003_wm_1.0_time_1717371339"
 
     #mod add
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1000.0/grok_Falsedataseed_4_sgdseed_4_initseed_4_wd_3e-05_wm_1000.0_time_1719694717"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_4.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_4.0_time_1719656301"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_10.0_time_1719661186"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_1.0_time_1719658785"
 
     #data_object_file_name="clusterdata/grok_False_time_1712763706_wm_1/data_seed_0_time_1712763732_train_100_wd_0.0_lr0.004"
     #data_object_file_name_ng=data_object_file_name#"clusterdata/grok_False_time_1712762395_wm_1/data_seed_0_time_1712762659_train_100_wd_0.0_lr0.001"
@@ -491,9 +491,11 @@ if __name__=="__main__":
     with open(data_object_file_name, 'rb') as in_strm:
         #single_run = dill.load(in_strm)
         single_run = torch.load(in_strm,map_location=torch.device('cpu'))
+        single_run.norms=single_run.l2norms
     with open(data_object_file_name_ng, 'rb') as in_strm:
         #single_run = dill.load(in_strm)
         single_run_ng = torch.load(in_strm,map_location=torch.device('cpu'))
+        single_run_ng.norms=single_run_ng.l2norms
 
     single_run.traincurves_and_iprs(single_run_ng).show()
     exit()
@@ -544,7 +546,7 @@ if __name__=="__main__":
     print(all_files[0].trainargs)
     print(all_files[0].trainargs)
 
-    exit()
+  
     # print(f'unequal args')
     # for arg in vars(all_files[0].trainargs).keys():
     #     if vars(all_files[0].trainargs)[arg]!=vars(single_run.trainargs)[arg]:
