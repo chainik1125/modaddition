@@ -2455,7 +2455,7 @@ if __name__== "__main__":
 
     test=generate_test_set(dataset,1000)
     criterion=nn.CrossEntropyLoss()
-    epoch=2000
+    epoch=1800
     # learning_rate=single_run_ng.trainargs.lr
     # weight_decay=single_run_ng.trainargs.weight_decay
     # print(single_run.modelclass)
@@ -2604,7 +2604,7 @@ if __name__== "__main__":
     
     grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0"
     nogrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1.0"
-    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/modaddwd_3e-4"
+    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/test"
     #"/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest"
 
     #grok_runs=open_files_in_leaf_directories(grok_foldername_seedaverage)
@@ -2721,39 +2721,18 @@ if __name__== "__main__":
                             kwargs['run_object']=file
                             result=func(*args,**kwargs)
                             all_layer.append(result[1])
-                            by_layer.append(result[2])
+                            if kwargs['by_layer']==True:
+                                by_layer.append(result[2])
                             wm_dic[file.trainargs.weight_multiplier][0].append(result[1])
                             wm_dic[file.trainargs.weight_multiplier][1].append(result[2])
-                            # print(result[1])
-                            # print(np.array(result[1]).shape)
-                            # print(np.array(result[1])[0,:])
-                            # print(np.array(result[1])[1,:])
-                            # print(np.array(result[1])[:,:])
-                            # print(np.array(result[1])[:,:1][:,0])
-                            
-                            # print(f'result 1 shape: {np.array(result[1]).shape}')
-                            # print(f'result 2 shape: {np.array(result[2]).shape}')
-                            # print(f'result 2 shape array: {np.array(result[2])[:,:,0].shape}')
-                            #print(f'all_layer first attempt accs {np.array(result[1])[:,0]}')
-                            #print(f'all_layer first attempt {np.array(result[1])[:,0]}')
-                            
-                            # print(f'by_layer first attempt {np.array(result[2])[:,:,0]}')
+                        
                             
                         for key in wm_dic.keys():
                             all_layer_areas=np.trapz(np.array(wm_dic[key][0]),x=kwargs['pruning_percents'])
                             by_layer_areas=np.trapz(np.array(wm_dic[key][1]),x=kwargs['pruning_percents'])
-                            #all_layer_first=np.array(np.array(wm_dic[key][0])[:,:,:1])
                             all_layer_first=np.array(wm_dic[key][0])[:,:,:1]
                             all_layer_first=all_layer_first.reshape(len(all_layer_first),2)
-                            #print(all_layer_first.reshape(len(all_layer_first),2))
-
-                            #print(f'all layer first attempt accs {all_layer_first}')
-                            
                             by_layer_first=np.array(np.array(wm_dic[key][1])[:,0,:])
-                            
-                            
-                            
-                            
                             
                             
                             wm_areas_dic[key]=(all_layer_areas,by_layer_areas,all_layer_first,by_layer_first)
@@ -2779,7 +2758,221 @@ if __name__== "__main__":
                 # return func(*args,**kwargs)
             return wrapped_function
         return inside_function
+    
+    def prune_area_heatmap(other_variable_list):
+        def inside_function(func):
+            @wraps(func)
+            def wrapped_function(*args,**kwargs):
+                if type(kwargs['run_object'])==str:
+                    print(f'started opening files')
+                   
+                    
+                    all_files_grok=open_files_in_leaf_directories(kwargs['run_object'])
+                    print('example trainargs:')
+                    print(all_files_grok[0].trainargs)
+                    print(f" len grok files {len(all_files_grok)}")
+                    def get_areas(files):
+                        wm_dic={}
+                        areas_dic={}
+                        all_layer=[]
+                        by_layer_list=[]
+                        print(f'started averaging')
+                        for file in tqdm(files, position=0, leave=True):
+                            wm_key = (file.trainargs.weight_multiplier, file.trainargs.weight_decay)
+                            if wm_key not in wm_dic:
+                                if kwargs['by_layer']:
+                                    wm_dic[wm_key] = ([], [])
+                                else:
+                                    wm_dic[wm_key] = ([],)
 
+                            kwargs['run_object']=file
+                            result=func(*args,**kwargs)
+                            all_layer.append(result[1])
+                            if kwargs['by_layer']==True:
+                                by_layer_list.append(result[2])
+                            wm_dic[(file.trainargs.weight_multiplier,file.trainargs.weight_decay)][0].append(result[1])
+                            if kwargs['by_layer']==True:
+                                wm_dic[(file.trainargs.weight_multiplier,file.trainargs.weight_decay)][1].append(result[2])
+                        
+                        # print(wm_dic)
+                        # print(f'len iter')
+                        # print(len(next(iter(wm_dic.values()))))
+                        # print(len(next(iter(wm_dic.values()))[0]))
+                        # exit()
+                        for key in wm_dic.keys():
+                            all_layer_areas=np.trapz(np.array(wm_dic[key][0]),x=kwargs['pruning_percents'])
+
+                            all_layer_first=np.array(wm_dic[key][0])[:,:,:1]
+                            all_layer_first=all_layer_first.reshape(len(all_layer_first),2)
+                            if kwargs['by_layer']:
+                                by_layer_areas=np.trapz(np.array(wm_dic[key][1]),x=kwargs['pruning_percents'])
+                                by_layer_first=np.array(np.array(wm_dic[key][1])[:,0,:])
+                            
+                            
+                            if kwargs['by_layer']==True:
+                                areas_dic[key]=(all_layer_areas,by_layer_areas,all_layer_first,by_layer_first)
+                            else:
+                                areas_dic[key]=(all_layer_areas,all_layer_first)
+                        
+                        return areas_dic
+                    
+                    grok_areas=get_areas(all_files_grok)
+                    
+                    
+                    print(f'function output (percent pruned, grok_all_layer)')
+                    return grok_areas
+                else:
+                    return func(*args,**kwargs)
+                #If you want the args you can just call args!
+                # print(f' args: {args}')
+                # print(f' args: {kwargs}')
+                # return func(*args,**kwargs)
+            return wrapped_function
+        return inside_function
+
+    #Want to have different weight decay curves on one graph.
+    def plot_dec_areas_2(plot):
+        def inside_function(func):
+            @wraps(func)
+            def wrapped_function(*args,**kwargs):
+                if plot:
+                    fig1=make_subplots(rows=2,cols=1,specs=[[{"secondary_y": True} for _ in range(1)] for _ in range(2)],subplot_titles=[r'$\text{(a) Pruning whole network - area under accuracy curve (average) }$',r'$\text{(a) Pruning whole network - area under loss curve (average) }$'])#],r'$\text{(a) Pruning whole network - area under loss curve (average)}$',r'$\text{(a) Pruning whole network - area under loss curve (individual) }$'])
+                    areas=func(*args,**kwargs)
+                    all_layer_area_accs_arrays=[]
+                    all_layer_area_losses_arrays=[]
+                    by_layer_area_accs_arrays=[]
+                    by_layer_area_losses_arrays=[]
+                    all_layer_first_acc_arrays=[]
+                    all_layer_first_loss_arrays=[]
+                    by_layer_first_acc_arrays=[]
+                    by_layer_first_loss_arrays=[]
+                    multipliers=[]
+                    avg_multpliers=[]
+                    
+                    from collections import defaultdict
+                    def group_by_first_key_entry(d):
+                        grouped_dict = defaultdict(lambda: ([], []))
+                        
+                        for (first, second), value in d.items():
+                            # grouped_dict[first][0].append(value)
+                            # grouped_dict[first][1].append(second)
+                            grouped_dict[second][0].append(value)
+                            grouped_dict[second][1].append(first)
+                        
+                        return dict(grouped_dict)
+                    
+                    # wm_dic=group_by_first_key_entry(areas)
+                    # print(f'test keys :\n {wm_dic.keys()}')
+                    # print(wm_dic)
+                    # exit()
+                    # print(f'test value :\n {next(iter(wm_dic.values()))[0][0][0][:,0]}')
+                    # print(f'test value :\n {next(iter(wm_dic.values()))[0]}')
+                    # print(f'test value :\n {next(iter(wm_dic.values()))[0][0]}')
+                    # exit()
+                    
+                    wm_dic=group_by_first_key_entry(areas)
+                    
+                    
+                    # print(wm_dic)
+                    
+                    plot_dic={}
+                    print(wm_dic.keys())
+                    print(f'first key values')
+                    
+                    #I need a function to deal with the case where I have more seeds in some runs than in others.
+                    
+                    def pad_subarrays_to_same_size(list1, list2, fill_value=np.nan):
+                        # Find the maximum length of subarrays in both lists
+                        max_subarray_length = max(
+                            max(len(subarray) for subarray in list1),
+                            max(len(subarray) for subarray in list2)
+                        )
+                        
+                        def pad_subarray(subarray, length, fill_value):
+                            padded = np.full(length, fill_value, dtype=float)
+                            padded[:len(subarray)] = subarray
+                            return padded
+
+                        def pad_list_of_subarrays(lst, max_length, fill_value):
+                            return np.array([pad_subarray(subarray, max_length, fill_value) for subarray in lst])
+
+                        # Pad subarrays in each list to the maximum subarray length
+                        array1 = pad_list_of_subarrays(list1, max_subarray_length, fill_value)
+                        array2 = pad_list_of_subarrays(list2, max_subarray_length, fill_value)
+
+                        return array1, array2
+                    
+                    for key in wm_dic.keys():
+                        #first
+                        #all_layer_area_arrays, all_layer_firsts_arrays = convert_and_pad(wm_dic, key)
+                        #You might just have to keep it as a list to deal with variable seed numbers.
+                        #OK, will figure out how to add nans to make the lists the same size later, for now I will just make it work with lists.
+                        all_layer_area_arrays=[i[0] for i in wm_dic[key][0]]
+                        all_layer_firsts_arrays=[i[1] for i in wm_dic[key][0]]
+                        print(all_layer_firsts_arrays)
+                        
+                        
+                        
+                        
+                        
+
+                        
+                        
+                        all_layer_area_averages=np.array([np.mean(x,axis=0) for x in all_layer_area_arrays])
+                        
+                        
+                        all_layer_acc_averages=all_layer_area_averages[:,0]
+                        all_layer_loss_averages=all_layer_area_averages[:,1]
+                        
+                        
+                        
+                        all_layer_firsts_averages=np.array([np.mean(x,axis=0) for x in all_layer_firsts_arrays])
+                        # print(all_layer_firsts_averages)
+                        
+                        all_layer_firsts_acc_averages=all_layer_firsts_averages[:,0]
+                        all_layer_firsts_loss_averages=all_layer_firsts_averages[:,1]
+                        weight_multipliers=np.array(wm_dic[key][1])
+                        plot_dic[key]=([all_layer_acc_averages,all_layer_loss_averages,all_layer_firsts_acc_averages,all_layer_firsts_loss_averages],weight_multipliers)
+
+
+                        #secon 
+                    
+                    #print(plot_dic)
+                    
+                    def flatten_array(arr):
+                        flattened = []
+                        for item in arr:
+                            if isinstance(item, np.ndarray):
+                                flattened.extend(flatten_array(item))
+                            else:
+                                flattened.append(item)
+                        return flattened
+                    
+                    acc_colors=['red','black','orange']
+                    loss_colors=['blue','green','gold']
+                    plot_index=0
+                    for key in plot_dic.keys():
+                        yvalues=plot_dic[key][0]
+                        xvalues=plot_dic[key][1]
+                        fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[0],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='cross'),name=f'Accuracy areas - average {key}',showlegend=True),row=1,col=1)
+                        #fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='diamond'),name=f'Start accuracy - average {key}',showlegend=True),row=1,col=1,secondary_y=True)
+                        fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[1],mode='markers',marker=dict(color=loss_colors[plot_index],symbol='cross'),name=f'Loss areas - average {key}',showlegend=True),row=2,col=1)
+                        #fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='diamond'),name=f'Start accuracy - average {key}',showlegend=True),row=2,col=1,secondary_y=True)
+                    
+                        fig1.update_yaxes(secondary_y=True,row=1,col=1,range=[0, 1.1])
+                        fig1.update_yaxes(secondary_y=True,row=1,col=2,range=[0, 1.1])  # Replace min_value and max_value with your desired valuesrow=1,
+                        plot_index+=1
+                    #fig1.update_yaxes(secondary_y=True,range=[0, 1.1],row=1,col=2)
+                    #fig1.update_yaxes(secondary_y=True,range=[min(plot_all_layer_loss_first_average), max(plot_all_layer_loss_first_average)],row=2,col=1)
+                    #fig1.update_yaxes(secondary_y=True,range=[min(plot_all_layer_loss_first), max(plot_all_layer_loss_first)],row=2,col=2)
+
+                    #fig1.add_trace(go.Scatter(x=np.array([[1,1],[2,2]]).ravel(),y=np.array([[2,2],[3,3]]).ravel(),mode='markers',marker=dict(color='blue'),name='Test',showlegend=True),row=2,col=1)
+                    return fig1
+                    
+
+            return wrapped_function
+        return inside_function
+    
     def plot_dec_areas(plot):
         def inside_function(func):
             @wraps(func)
@@ -3046,7 +3239,7 @@ if __name__== "__main__":
     
     @plot_dec_areas(True)
     @prune_area()
-    def magnitude_prune_prod_mod_avg_areas(run_object,pruning_percents,layers_pruned,epoch):
+    def magnitude_prune_prod_mod_avg_areas(run_object,pruning_percents,layers_pruned,epoch,by_layer=True):
         original_model, original_model_dic=load_model(run_object,epoch)
         original_weights = save_original_weights(original_model, layers_pruned)
         
@@ -3058,18 +3251,43 @@ if __name__== "__main__":
         #reset model
         original_model, original_model_dic=load_model(run_object,epoch)
         #accuracies and losses for individual layers
-        accs_losses_bylayer=[iterative_prune_from_original_mod(original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+        if by_layer:
+            accs_losses_bylayer=[iterative_prune_from_original_mod(original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+            return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+        else:
+            return (pruning_percents,accs_losses_alllayers)
+
+    @plot_dec_areas_2(True)
+    @prune_area_heatmap(other_variable_list='weight_decay')
+    def magnitude_prune_prod_mod_avg_areas_heatmap(run_object,pruning_percents,layers_pruned,epoch,by_layer=True):
+        original_model, original_model_dic=load_model(run_object,epoch)
+        original_weights = save_original_weights(original_model, layers_pruned)
         
 
-        return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+        original_model, original_model_dic=load_model(run_object,epoch)
+
+        #accuracies and losses for all layers
+        accs_losses_alllayers=iterative_prune_from_original_mod(original_model, original_weights, layers_pruned, pruning_percents,'all_layers')
+        #reset model
+        original_model, original_model_dic=load_model(run_object,epoch)
+        #accuracies and losses for individual layers
+        if by_layer:
+            accs_losses_bylayer=[iterative_prune_from_original_mod(original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+            return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+        else:
+            return (pruning_percents,accs_losses_alllayers)
+        
 
     
-    print('func result')
+    
     #percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch=epoch)
     #percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,5),layers_pruned=['model.0','model.2'],epoch=epoch)
     
-    area_plot=magnitude_prune_prod_mod_avg_areas(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch)
-    area_plot.show()
+    # area_plot=magnitude_prune_prod_mod_avg_areas(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch)
+    # area_plot.show()
+    prune_area_heatmap_plot=magnitude_prune_prod_mod_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch,by_layer=False)
+    prune_area_heatmap_plot.show()
+    # print(f'keys')
     exit()
     single_run.traincurves_and_iprs(single_run_ng).show()
     
@@ -3077,197 +3295,3 @@ if __name__== "__main__":
     exit()
 
 
-# print(acc_loss_test(pruned_grok_model))
-# print(acc_loss_test(pruned_nogrok_model))
-
-# def save_missing_bits(filename,runobj):
-#     runobj.modelclass=CNN
-#     config2=manual_config_CNN(runobj)
-#     runobj.modelconfig=config2
-#     try:
-#         with open(filename, "wb") as dill_file:
-#             torch.save(runobj, dill_file)
-#     except Exception as e:
-#         print(f"An error occurred during serialization: {e}")
-#         print(filename)
-
-# save_missing_bits(data_object_file_name,single_run)
-# save_missing_bits(data_object_file_name_ng,single_run_ng)
-# exit()
-
-#criterion=nn.CrossEntropyLoss()
-#features_ten=construct_features_tensor(images_tensor=test[0],feature_funcs=[functools.partial(compute_energy_torch_batch,J=1),magnetization])
-#non_grokked_object,sortby,neuron_index,images_tensor,feature_funcs,dataset
-#single_run.correlation_epochs(non_grokked_object=single_run_ng,sortby='var',neuron_index=0,images_tensor=test[0],feature_funcs=[functools.partial(compute_energy_torch_batch,J=1),magnetization],dataset=test)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# def single_neuron_vec(image_activations_dist):
-#     neuron_vector=[]
-#     average_activation=[]
-#     variance=[]
-#     energy=[]
-#     # Quantities calculated over all images
-#     for layer in range(len(image_activations_dist)):
-#         average_activation.append(sum(image_activations_dist,axis=0)/image_activations_dist.shape[0])
-#         variance.append(np.sum(np.square(image_activations_dist),axis=0)/len(image_activations_dist.shape[0])-np.square(average_activation))
-#     return
-
-# def image_values(images,func):
-#     image_quantity=[]
-#     for i in range(images.shape[0]):#Assumes axis 0 is the image axis
-#         value=func(images[i,:,:])
-#         image_quantity.append(value)
-#     return np.array(image_quantity)
-
-# list_of_image_functions=[compute_energy,get_ccs]
-# #Let's form an array of image values:
-
-# # energies=[compute_energy(i) for i in X_test]
-# # largest_cc=[get_ccs(i) for i in X_test]
-
-
-# print(f"grok_folder: {model_folder}")
-# #epind=int(19900/100)
-# epind=-1
-# test2,epoch=get_model_neuron_activations(epochindex=epind,pathtodata=model_folder,image_number='var',image_set=example_images)#Note that this gives me average ordered
-# testdist,epoch=get_model_neuron_activations(epochindex=epind,pathtodata=model_folder,image_number='dist',image_set=example_images)
-
-
-# def visualize_images(image_list,image_indices,image_activations,nlargest):
-#     rowcount=10
-#     depthcount=3
-#     image_positions=[int(x) for x in np.linspace(depthcount,len(image_list)-1,rowcount)]
-#     image_indices=[[image_indices[x-i] for i in range(depthcount)] for x in image_positions]
-#     labels=[y_test[x] for x in image_positions]
-#     #print(image_indices)
-#     image_acts=[image_activations[x] for x in image_indices]
-#     #print(image_acts)
-#     #Now just visualize the images
-
-#     fig, ax = plt.subplots(depthcount,rowcount,figsize=(20,5))
-    
-#     for j in range(depthcount):
-#         for i in range(rowcount):
-#             a=round(image_acts[i][j],2)
-#             ax[j,i].spy(X_test[image_indices[i][j]] + 1 )
-#             energy=compute_energy(X_test[image_indices[i][j]])
-#             energy=round(energy.item(),3)
-#             ax[j,i].set_title(f'Act: {str(a)}')#, , l{y_test[image_indices[i]]},#f'Act: {str(a)}'
-#             ax[j,i].set_xlabel(f'T-Tc: {str(np.round((my_y_temp[image_indices[i][j]]-2.69).numpy(),2))}, En: {energy}')#mag: {sum(torch.flatten(X_test[image_indices[i]]))}
-#             ax[j,i].set_yticklabels([])
-#             ax[j,i].set_xticklabels([])
-#             if nlargest<0:
-#                 number=-nlargest
-#                 text='th most activated neuron'
-#             else:
-#                 number=nlargest+1
-#                 text='th least activated neuron'
-#     fig.suptitle(f'{number}{text}')
-#     fig.tight_layout()
-#     fig.savefig(str(root)+f'/{number}{text}_epoch_{str(int(epind*20))}_quiltgraphs')
-#     fig.subplots_adjust(top=0.88)
-
-
-#     #plt.spy(configs[50]+1)
-#     #plt.show()
-
-# def visualize_image_values(image_values,image_activations,func_labels,nlargest):
-#     fig, ax=plt.subplots(1,len(image_values),figsize=(25,10))
-    
-#     if len(image_values)==1:
-#         ax.scatter(image_values,image_activations)
-#         ax.set_title('Something')
-#         ax.set_xlabel('Values')
-#         ax.set_ylabel('Activations')
-#     else:
-#         for i in range(len(image_values)):
-#             ax[i].scatter(image_values[i],image_activations)
-#             ax[i].set_title(func_labels[i])
-#             ax[i].set_xlabel(func_labels[i])
-#             ax[i].set_ylabel('Activations')
-#     if nlargest<0:
-#         number=-nlargest
-#         text='th most activated neuron'
-#     else:
-#         number=nlargest+1
-#         text='th least activated neuron'
-#     fig.suptitle(f'{number}{text}'+' Image-Activation graphs')
-#     fig.tight_layout()
-#     fig.savefig(str(root)+f'/{number}{text}_epoch_{str(int(epind*20))}_corrgraphs')
-#     #plt.show()
-
-
-#     return None
-
-# testn,testl=get_neuron(neuron_activation_list=test2,layer=2,nlargest=-1)
-# def image_graphs(funcs,image_set,image_activations,image_indices,func_labels,nlargest):
-#     all_image_vals=[]
-#     new_acts=[image_activations[image_indices[i]]for i in range(len(image_indices))]
-#     for func in funcs:
-#         image_vals=[func(image_set[image_indices[i]]) for i in range(len(image_indices))]
-#         all_image_vals.append(image_vals)
-#     viz_all=visualize_image_values(all_image_vals,new_acts,func_labels,nlargest=nlargest)
-#     return image_vals
-
-# #testv1=visualize_images(image_list=X_test,image_indices=testg,image_activations=testi,nlargest=-1)
-# # testv2=visualize_images(image_list=X_test,image_indices=testg,image_activations=testi)
-
-
-# np.array(X_test[2].detach().cpu().numpy())
-
-# def get_quilt(image_activations,images,neuron_index,layer,global_funcs,func_labels):
-#     testn,testl=get_neuron(neuron_activation_list=test2,layer=layer,nlargest=neuron_index)
-#     print(testn)
-#     image_activations,image_indices=get_image_indices(image_activations=image_activations,images=images,neuron_index=testn,layer=layer)
-#     viz=visualize_images(image_list=images,image_indices=image_indices,image_activations=image_activations,nlargest=neuron_index)
-#     viz_all=image_graphs(funcs=global_funcs,image_set=images,image_activations=image_activations,image_indices=image_indices,func_labels=func_labels,nlargest=neuron_index)
-
-
-
-# get_quilt(image_activations=testdist,images=X_test,neuron_index=-1,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# #get_quilt(image_activations=testdist,images=X_test,neuron_index=-3,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# #get_quilt(image_activations=testdist,images=X_test,neuron_index=-4,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# #get_quilt(image_activations=testdist,images=X_test,neuron_index=-5,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-
-
-# get_quilt(image_activations=testdist,images=X_test,neuron_index=-2,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# get_quilt(image_activations=testdist,images=X_test,neuron_index=-3,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# get_quilt(image_activations=testdist,images=X_test,neuron_index=-4,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# get_quilt(image_activations=testdist,images=X_test,neuron_index=-5,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# get_quilt(image_activations=testdist,images=X_test,neuron_index=-10,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# #get_quilt(image_activations=testdist,images=X_test,neuron_index=-20,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-# #get_quilt(image_activations=testdist,images=X_test,neuron_index=0,layer=2,global_funcs=[compute_energy,get_ccs,magnetization],func_labels=['Energy','Largest Connected component','Magnetization'])
-
-# #Save user defined variables
-# import dill
-
-
-
-# # Function to filter user-defined variables
-# def filter_user_defined_variables(globals_dict):
-#     user_defined_vars = {}
-#     for name, value in globals_dict.items():
-#         # Check if the variable is not a built-in or imported module/function
-#         if not name.startswith('_') and not hasattr(value, '__module__'):
-#             user_defined_vars[name] = value
-#     return user_defined_vars
-
-# # Filter the user-defined variables
-# user_vars = filter_user_defined_variables(globals())
-
-# # Save only user-defined variablese
-# filename = str(root)+'/variables.p'
-# with open(filename, 'wb') as file:
-#     dill.dump(user_vars, file)
