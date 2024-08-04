@@ -2,11 +2,7 @@ import os
 import sys
 import dill
 
-# Add the path to the PYTHONPATH
-new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
-if new_path not in sys.path:
-    sys.path.append(new_path)
-    os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
+
 
 from dataclasses import dataclass
 from timeit import default_timer as timer
@@ -33,10 +29,10 @@ import itertools
 #import kaleido
 
 ################Seeds
-from cluster.data_objects import seed_average_onerun#I think you need the cluster. when you set the PYTHONPATH to be Code
+from data_objects import seed_average_onerun#I think you need the cluster. when you set the PYTHONPATH to be Code
 import functools
 from plotly.graph_objects import FigureWidget
-import cluster.dynamic_plot
+import dynamic_plot
 
 
 
@@ -857,7 +853,7 @@ if __name__ == '__main__':
 	if cluster==False:
 		root=f'../../large_files/test_runs/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
 	else:
-		root=f'../../large_files/modaddwd_3e-5/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
+		root=f'../../large_files/modaddwd_3e-5_actual/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
 	
 	os.makedirs(root,exist_ok=True)
 	print('makedirs called')

@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=mahwd
+#SBATCH --job-name=1e-7
 #SBATCH --ntasks=1
 #SBATCH --time=06:00:00
 #SBATCH --partition=eng-research-gpu
 #SBATCH --account=bbradlyn-phys-eng
 #SBATCH --mail-user=dmanningcoe@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --array=1-19
+#SBATCH --array=1-21
 module load anaconda/2023-Mar/3
 module load cuda/11.7
 # nvcc --version
@@ -43,7 +43,7 @@ P=$(awk -v ArrayTaskID=$SLURM_ARRAY_TASK_ID '$1==ArrayTaskID {print $14}' $confi
 train_fraction=$(awk -v ArrayTaskID=$SLURM_ARRAY_TASK_ID '$1==ArrayTaskID {print $15}' $config)
 weight_multiplier=$(awk -v ArrayTaskID=$SLURM_ARRAY_TASK_ID '$1==ArrayTaskID {print $16}' $config)
 #Run that file hombre - note the one for the cluster argument so I don't have to keep changing between local and cluster!
-srun python3 cluster_run_average.py ${SLURM_ARRAY_TASK_ID} ${data_seed_start} ${data_seed_end} ${sgd_seed_start} ${sgd_seed_end} ${init_seed_start} ${init_seed_end} ${wd} ${grok} ${train_size} ${hl_size} ${lr_input} ${train_type} ${P} ${train_fraction} ${weight_multiplier} 1
+srun python3 cluster_run_average_send.py ${SLURM_ARRAY_TASK_ID} ${data_seed_start} ${data_seed_end} ${sgd_seed_start} ${sgd_seed_end} ${init_seed_start} ${init_seed_end} ${wd} ${grok} ${train_size} ${hl_size} ${lr_input} ${train_type} ${P} ${train_fraction} ${weight_multiplier} 1
 
 # Print to a file a message that includes the current $SLURM_ARRAY_TASK_ID, the same name, and the sex of the sample
 echo "This is array task ${SLURM_ARRAY_TASK_ID}, ${data_seed_start} ${data_seed_end} ${sgd_seed_start} ${sgd_seed_end} ${init_seed_start} ${init_seed_end} ${wd} ${grok} ${train_size} ${hl_size} ${lr_input} ${train_type} ${P} ${train_fraction} ${weight_mutliplier}" >> output.txt
