@@ -1153,7 +1153,7 @@ class seed_average_onerun():
         return fig
     
 
-    def traincurves_and_iprs(self,non_grokked_object):
+    def traincurves_and_iprs(self,non_grokked_object,remove_wdloss=False):
         titles=[r'$\text{(a) Grokking accuracy in training}$',r'$\text{(b) Learning accuracy in training}$',r'$\text{(c) Grokking loss in training}$',r'$\text{(d) Learning loss in training}$']+[r'$\text{(e) Weight norm}$',r'$\text{(f) IPR r=2}$',r'$\text{(f) IPR r=4}$',r'$\text{(f) IPR r=1/2}$']
         fig=make_subplots(rows=2,cols=4,subplot_titles=titles)
 
@@ -1175,7 +1175,11 @@ class seed_average_onerun():
         fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_accuracies))),y=non_grokked_object.test_accuracies,mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Learning test}$'),row=1,col=2)
         fig.update_yaxes(title_text=r'$\text{Accuracy}$',row=1,col=2)
         #losses
-        fig.add_trace(go.Scatter(x=list(range(len(self.train_losses))),y=self.train_losses,mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grokking train}$'),row=1,col=3)
+        if remove_wdloss:
+            removedloss_self=self.train_losses-(self.trainargs.weightdecay)*np.array(self.weight_norms)#not square-rooted
+        else:
+            removedloss_self=self.train_losses
+        fig.add_trace(go.Scatter(x=list(range(len(self.train_losses))),y=removedloss_self,mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grokking train}$'),row=1,col=3)
         fig.add_trace(go.Scatter(x=list(range(len(self.test_losses))),y=self.test_losses,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grokking test}$'),row=1,col=3)
         #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(self.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=1, col=1)
         fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=3)
@@ -1189,8 +1193,12 @@ class seed_average_onerun():
         #     row=2,
         #     col=1  # No border line
         #     )
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=non_grokked_object.train_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=non_grokked_object.test_losses,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
+        if remove_wdloss:
+            removedloss_ng=non_grokked_object.train_losses-(non_grokked_object.trainargs.weightdecay)*np.array(non_grokked_object.weight_norms)#not square-rooted
+        else:
+            removedloss_ng=non_grokked_object.train_losses
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=removedloss_ng.train_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=removedloss_ng.test_losses,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
         fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=4)
         
 

@@ -34,6 +34,7 @@ import copy
 #import kaleido
 
 ################Seeds
+from mnist.cluster_run_average import MLP_mnist,compute_loss_mnist,compute_accuracy_mnist
 from cluster.data_objects import seed_average_onerun
 from cluster.cluster_run_average import TrainArgs
 from cluster.cluster_run_average import CNN
@@ -1288,7 +1289,7 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
     return accuracies,losses
 
 
-def iterative_prune_from_original_mod(model, original_weights, layers_to_prune, pruning_percents,pruning_type):
+def iterative_prune_from_original_mod(model, original_weights, layers_to_prune, pruning_percents,pruning_type,test_loader=None,type="Mod",loss_function="CrossEntropy"):
     """
     Iteratively prunes the model from the original weights and evaluates accuracy after each level of pruning.
     
@@ -1334,7 +1335,7 @@ def iterative_prune_from_original_mod(model, original_weights, layers_to_prune, 
                 prune.l1_unstructured(module, name='weight', amount=percent)
                 prune.remove(module, 'weight')
 
-        accuracy,loss = acc_loss_test_mod(model)  # Assuming acc_los is defined elsewhere
+        accuracy,loss = acc_loss_test_mod(model,test_loader=test_loader,type=type,loss_function=loss_function)  # Assuming acc_los is defined elsewhere
         accuracies.append(accuracy)
         losses.append(loss)
     reset_to_original_weights(model,original_weights)
@@ -2349,7 +2350,7 @@ def manual_config_moddadd(run_object):
 
 def open_files_in_leaf_directories(root_dir):
     all_files=[]
-    for dirpath, dirnames, filenames in os.walk(root_dir):
+    for dirpath, dirnames, filenames in tqdm(os.walk(root_dir),desc='Folders loaded',leave=False):
         # Check if the current directory is a leaf directory
         if not dirnames:
             for filename in filenames:
@@ -2359,7 +2360,7 @@ def open_files_in_leaf_directories(root_dir):
                             single_run = torch.load(in_strm,map_location=device)
                                             # Do something with the content if needed
                             all_files.append(single_run)
-                    print(f'file opened')
+                    #print(f'file opened')
                 except Exception as e:
                     print(f"Failed to open {file_path}: {e}")
     return all_files
@@ -2490,26 +2491,30 @@ if __name__== "__main__":
     # exit()
     #original_model_g,original_model_g_dic=load_model(single_run,epoch)
 
-    def acc_loss_test_mod(model):
+    def acc_loss_test_mod(model,test_loader=None,type="Mod",loss_function="CrossEntropy"):
         loss_criterion=nn.MSELoss()
-        testloader,test_dataset=generate_test_set_modadd(dataset=dataset,size=1000,run_object=single_run)
-        with torch.no_grad():
-            test_loss = 0.0
-            test_accuracy = 0.0
-            for batch in testloader:
-                X_test,y_test=batch
-                y_val=model(X_test).to(device)
-                float_y=y_test.float().clone().detach()
-                loss = criterion(y_val, float_y.to(device))
-                test_loss += loss.item()
-                loss_criterion='MSE'
-                if loss_criterion=='MSE':
-                    test_accuracy += (y_val.argmax(dim=1) == y_test.argmax(dim=1)).sum().item()
-                else:
-                    test_accuracy += (y_val.argmax(dim=1) == y_test).sum().item()
-            
-            test_loss /= len(testloader)
-            test_accuracy /= len(test_dataset)
+        if type=='Mod':
+            testloader,test_dataset=generate_test_set_modadd(dataset=dataset,size=1000,run_object=single_run)
+            with torch.no_grad():
+                test_loss = 0.0
+                test_accuracy = 0.0
+                for batch in testloader:
+                    X_test,y_test=batch
+                    y_val=model(X_test).to(device)
+                    float_y=y_test.float().clone().detach()
+                    loss = criterion(y_val, float_y.to(device))
+                    test_loss += loss.item()
+                    loss_criterion='MSE'
+                    if loss_criterion=='MSE':
+                        test_accuracy += (y_val.argmax(dim=1) == y_test.argmax(dim=1)).sum().item()
+                    else:
+                        test_accuracy += (y_val.argmax(dim=1) == y_test).sum().item()
+                
+                test_loss /= len(testloader)
+                test_accuracy /= len(test_dataset)
+        elif type=='mnist':
+            test_loss=compute_loss_mnist(model,test_loader,loss_function=loss_function,N=2000,batch_size=50,device=device)
+            test_accuracy=compute_accuracy_mnist(model,test_loader,N=2000,batch_size=50,device=device)
             
         return test_accuracy,test_loss
     
@@ -2854,7 +2859,7 @@ if __name__== "__main__":
                     if save_dict:
                         import datetime
                         root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data"
-                        filename=f'prune_dic_ising_wd_{next(iter(grok_areas.keys()))[1]}_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year},{datetime.datetime.now().hour}:{datetime.datetime.now().minute}.pickle'
+                        filename=f'prune_dic_mnist_wd_{next(iter(grok_areas.keys()))[1]}_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year},{datetime.datetime.now().hour}:{datetime.datetime.now().minute}.pickle'
                         filename=os.path.join(root_folder,filename)
                         with open(filename, 'wb') as handle:
                             pickle.dump(grok_areas, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -3015,8 +3020,8 @@ if __name__== "__main__":
             return wrapped_function
         return inside_function
     
-    def plot_dec_areas_saved(saved_dic_path):
-        fig1=make_subplots(rows=2,cols=1,specs=[[{"secondary_y": True} for _ in range(1)] for _ in range(2)],subplot_titles=[r'$\text{(a) Starting loss (average) }$',r'$\text{(a) Pruning whole network - area under loss curve (average) }$'])#],r'$\text{(a) Pruning whole network - area under loss curve (average)}$',r'$\text{(a) Pruning whole network - area under loss curve (individual) }$'])
+    def plot_dec_areas_saved(saved_dic_path,rescale=False):
+        fig1=make_subplots(rows=2,cols=1,specs=[[{"secondary_y": True} for _ in range(1)] for _ in range(2)],subplot_titles=['Starting loss (average) '+f'rescale: {rescale}','Pruning whole network - area under loss curve (average) '+f'rescale: {rescale}'])#],r'$\text{(a) Pruning whole network - area under loss curve (average)}$',r'$\text{(a) Pruning whole network - area under loss curve (individual) }$'])
         with open(saved_dic_path, 'rb') as handle:
             areas = pickle.load(handle)
         all_layer_area_accs_arrays=[]
@@ -3132,18 +3137,28 @@ if __name__== "__main__":
         
         #loss_colors=[f'rgba({int((i/len(plot_dic.keys()))*255)}, 0, {int(255 - (i/len(plot_dic.keys()))*255)}, 1)' for i in range(len(plot_dic.keys()))]
         N=len(plot_dic.keys())
-        viridis_colors = plc.sample_colorscale('Viridis', [n/(N-1) for n in range(N)])
+        if N==1:
+            viridis_colors=['red']
+        else:
+            viridis_colors = plc.sample_colorscale('Viridis', [n/(N-1) for n in range(N)])
         symbols=['cross','diamond','circle','square','triangle-up','triangle-down','star','hexagram','star-triangle-up','star-triangle-down','star-square','star-diamond','diamond-tall','diamond-wide','hourglass','bowtie']
         plot_index=0
         for key in plot_dic.keys():
             yvalues=plot_dic[key][0]
             xvalues=plot_dic[key][1]
-            fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[0],mode='markers',marker=dict(color=viridis_colors[plot_index],symbol=symbols[plot_index]),name=f'{key}',showlegend=True),row=1,col=1)
+
+            fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[3],mode='markers',marker=dict(color=viridis_colors[plot_index],symbol=symbols[plot_index]),name=f'{key}',showlegend=True),row=1,col=1)
             #fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='diamond'),name=f'Start accuracy - average {key}',showlegend=True),row=1,col=1,secondary_y=True)
-            fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=viridis_colors[plot_index],symbol=symbols[plot_index]),name=f'{key}',showlegend=True),row=2,col=1)
+            if rescale:
+                new_ys=yvalues[1]/yvalues[3]
+            else:
+                new_ys=yvalues[1]
+            fig1.add_trace(go.Scatter(x=xvalues,y=new_ys,mode='markers',marker=dict(color=viridis_colors[plot_index],symbol=symbols[plot_index]),name=f'{key}',showlegend=True),row=2,col=1)
             #fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='diamond'),name=f'Start accuracy - average {key}',showlegend=True),row=2,col=1,secondary_y=True)
-        
-            #fig1.update_yaxes(secondary_y=False,type='log',row=1,col=1)
+            fig1.update_xaxes(title='Weight multiplier')
+            fig1.update_yaxes(secondary_y=False,title='Starting loss',type='log',row=1,col=1)
+            
+            fig1.update_yaxes(secondary_y=False,title=f'Area under loss curve, rescaled: {rescale}',row=2,col=1)
             
             #fig1.update_yaxes(secondary_y=True,row=1,col=2,range=[0, 1.1])  # Replace min_value and max_value with your desired valuesrow=1,
             plot_index+=1
@@ -3153,7 +3168,26 @@ if __name__== "__main__":
         #fig1.update_yaxes(secondary_y=True,range=[min(plot_all_layer_loss_first), max(plot_all_layer_loss_first)],row=2,col=2)
 
         #fig1.add_trace(go.Scatter(x=np.array([[1,1],[2,2]]).ravel(),y=np.array([[2,2],[3,3]]).ravel(),mode='markers',marker=dict(color='blue'),name='Test',showlegend=True),row=2,col=1)
-        return fig1
+        fig2=make_subplots(rows=2,cols=1,specs=[[{"secondary_y": True} for _ in range(1)] for _ in range(2)],subplot_titles=['Starting accuracy (average) '+f'rescale: {rescale}','Pruning whole network - area under accuracy curve (average) '+f'rescale: {rescale}'])#],r'$\text{(a) Pruning whole network - area under loss curve (average)}$',r'$\text{(a) Pruning whole network - area under loss curve (individual) }$'])
+        plot_index=0
+        for key in plot_dic.keys():
+            yvalues=plot_dic[key][0]
+            xvalues=plot_dic[key][1]
+            fig2.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=viridis_colors[plot_index],symbol=symbols[plot_index]),name=f'{key}',showlegend=True),row=1,col=1)
+            if rescale:
+                new_ys=yvalues[0]/yvalues[2]
+            else:
+                new_ys=yvalues[0]
+            #fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='diamond'),name=f'Start accuracy - average {key}',showlegend=True),row=1,col=1,secondary_y=True)
+            fig2.add_trace(go.Scatter(x=xvalues,y=new_ys,mode='markers',marker=dict(color=viridis_colors[plot_index],symbol=symbols[plot_index]),name=f'{key}',showlegend=True),row=2,col=1)
+            #fig1.add_trace(go.Scatter(x=xvalues,y=yvalues[2],mode='markers',marker=dict(color=acc_colors[plot_index],symbol='diamond'),name=f'Start accuracy - average {key}',showlegend=True),row=2,col=1,secondary_y=True)
+            fig2.update_xaxes(title='Weight multiplier')
+            fig2.update_yaxes(secondary_y=False,title='Starting accuracy',row=1,col=1)
+            fig2.update_yaxes(secondary_y=False,title=f'Area under accuracy curve, rescaled: {rescale}',row=2,col=1)
+            
+            #fig1.update_yaxes(secondary_y=True,row=1,col=2,range=[0, 1.1])  # Replace min_value and max_value with your desired valuesrow=1,
+            plot_index+=1
+        return fig1,fig2
     
     def plot_dec_areas(plot):
         def inside_function(func):
@@ -3395,7 +3429,7 @@ if __name__== "__main__":
         original_model, original_model_dic=load_model(run_object,epoch)
 
         #accuracies and losses for all layers
-        accs_losses_alllayers=iterative_prune_from_original_mod(original_model, original_weights, layers_pruned, pruning_percents,'all_layers')
+        accs_losses_alllayers=iterative_prune_from_original_mod(original_model, original_weights, layers_pruned, pruning_percents,'all_layers',test_loader=run_object.test_loader,type='mnist')
         #reset model
         original_model, original_model_dic=load_model(run_object,epoch)
         #accuracies and losses for individual layers
@@ -3435,41 +3469,46 @@ if __name__== "__main__":
     
     # area_plot=magnitude_prune_prod_mod_avg_areas(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch)
     # area_plot.show()
-    # epoch=99999
-    # all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/IsingCluster/Ising_areas/copy_Ising_varynorm_wd_0.1"
-    # area_plot_ising=magnitude_prune_ising_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['conv_layers.3','fc_layers.0'],epoch=epoch,by_layer=False)
-    # area_plot_ising.show()
-    # exit()
-    # prune_area_heatmap_plot=magnitude_prune_prod_mod_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch,by_layer=False)
-    # prune_area_heatmap_plot.show()
-    # wm_dic_path1="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_ising_wd_1.0_3-8-2024,22:35.pickle"
-    # wm_dic_path2="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_ising_wd_0.1_3-8-2024,23:40.pickle"
-    # wm_dic_path3="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_ising_wd_0.01_3-8-2024,20:7.pickle"
-    # wm_dic_path4="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_ising_wd_0.001_3-8-2024,22:49.pickle"
-    # wm_dic_path5="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_ising_wd_0_3-8-2024,14:32.pickle"
-    # with open(wm_dic_path1, 'rb') as handle:
-    #     dic1 = pickle.load(handle)
-    # with open(wm_dic_path2, 'rb') as handle:
-    #     dic2 = pickle.load(handle)
-    # with open(wm_dic_path3, 'rb') as handle:
-    #     dic3 = pickle.load(handle)
-    # with open(wm_dic_path4, 'rb') as handle:
-    #     dic4 = pickle.load(handle)
-    # with open(wm_dic_path5, 'rb') as handle:
-    #     dic5 = pickle.load(handle)
+    epoch=29999
+    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_longer"
     
-    # combined_dic={**dic1, **dic2, **dic3, **dic4, **dic5}
-    
-    # import datetime
-    # root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data"
-    # filename=f'prune_dic_combined_ising_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.pickle'
-    # filename=os.path.join(root_folder,filename)
-    # with open(filename, 'wb') as handle:
-    #     pickle.dump(combined_dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # exit()
-    wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_combined_ising_3-8-2024, 23:42.pickle"
-    plot=plot_dec_areas_saved(saved_dic_path=wm_dic_path).show()
+    area_plot_mod=magnitude_prune_prod_mod_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.1','model.3','model.5'],epoch=epoch,by_layer=False)
+    area_plot_mod.show()
     exit()
+
+    def combine_dictionaries(path_list):
+        import datetime
+        dic_list = []
+        for path in path_list:
+            try:
+                with open(path, 'rb') as handle:
+                    temp_dic = pickle.load(handle)
+                    dic_list.append(temp_dic)
+            except (FileNotFoundError, pickle.PickleError) as e:
+                print(f"Error loading {path}: {e}")
+
+        combined_dic = {k: v for d in dic_list for k, v in d.items()}
+    
+        root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data"
+        filename=f'prune_dic_combined_mnist_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.pickle'
+        filename=os.path.join(root_folder,filename)
+        with open(filename, 'wb') as handle:
+            pickle.dump(combined_dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f'saved combined dic as {filename}')
+        print(f'Individual dics:')
+        for path in path_list:
+            print(path)
+
+    # dicpaths=['/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_combined_mnist_7-8-2024, 10:16.pickle',
+    #           '/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_mnist_wd_1.0_5-8-2024,10:53.pickle']
+    #           #'/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_mnist_wd_1.0_5-8-2024,10:53.pickle']
+    # combine_dictionaries(dicpaths)
+    # exit()
+    # wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_combined_mnist_7-8-2024, 10:18.pickle"
+    # plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
+    # plot_loss.show()
+    # plot_acc.show()
+    # exit()
     # print(f'keys')
     
     #single_run.traincurves_and_iprs(single_run_ng).show()
