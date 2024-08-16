@@ -38,7 +38,8 @@ import functools
 from plotly.graph_objects import FigureWidget
 import cluster.dynamic_plot
 
-
+#grokfast attempt
+#from grokfast import gradfilter_ma, gradfilter_ema
 
 
 
@@ -261,6 +262,9 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	print(f'l2 norm: {calculate_weight_norm(model,2)}')
 	end=time.time()
 	print(f'time to calculate l2 norm: {end-start}')
+	break_epoch=None
+	second_lr=10e-3
+	done=False
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 	
@@ -291,6 +295,11 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		epochs = 2900
 	if fix_norm:
 		norm=np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
+	#for grokfast
+
+	grads = None
+	print(f'grads = {grads}')
+
 	for i in tqdm(range(epochs)):
 		train_correct = 0
 		test_correct = 0
@@ -323,13 +332,24 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 			for batch in train_loader:
 				X_train,y_train=batch
 				optimizer.zero_grad()
+				
 				y_pred=model(X_train).to(device)
 				y_train=y_train.float().to(device)
 				loss = criterion(y_pred, y_train.to(device))
 				loss.backward()
+				#grads = gradfilter_ema(model, grads=grads, alpha=0.8, lamb=1.0)
 				optimizer.step()
 				train_loss += loss.item()
-
+				# print('now')
+				# print(break_epoch)
+				# print(done)
+				
+				if break_epoch!=None and i>break_epoch and done==False:
+					print(f'optimizer learning rate before change {model.optimizer.param_groups[0]["lr"]}')
+					model.optimizer.param_groups[0]['lr'] = second_lr
+					print(f'optimizer learning rate after change {model.optimizer.param_groups[0]["lr"]}')
+					done=True
+					
 				if loss_criterion=='MSE':
 					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
 				else:
@@ -455,7 +475,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	one_run_object.iprs=iprs
 	one_run_object.norms=norms
 
-	if cluster==False:
+	if cluster_arg==False:
 		# plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
 		one_run_object.traincurves_and_iprs(one_run_object).show()
 
@@ -762,61 +782,66 @@ class ModularArithmeticDataset(Dataset):
 
 if __name__ == '__main__':
 
-	cluster_array=1
-	print(f'sys.argv: {sys.argv}')
-	print(sys.argv[1])
+	import yaml
+	import argparse
 
-	data_seed_start=int(sys.argv[1+cluster_array])
-	print(f'sys argv[1+cluster_array] {sys.argv[1+cluster_array]}')
-	data_seed_end=int(sys.argv[2+cluster_array])
+	# Load YAML file
+	with open('mod_config.yaml', 'r') as file:
+		config = yaml.safe_load(file)
+
+	# This allows you to modify any of the yaml configs from the command line.
+	parser = argparse.ArgumentParser(description="Update YAML configuration values.")
+	for key in config:
+		parser.add_argument(f'--{key}', type=str, help=f'Override value for {key}')
+
+	args = parser.parse_args()
+	
+
+	# Update config with command-line arguments if provided
+	for key, value in vars(args).items():
+		if value is not None:
+			config[key] = value
+
+	#Now I want to initialize the variables - the slick way is below, but maybe more readable this way
+	# Create variables with names from YAML keys
+	# for key, value in config.items():
+	# 	globals()[key] = value
+	
+	
+	cluster_array=1
+	data_seed_start=int(config['data_seed_start'])
+	data_seed_end=int(config['data_seed_end'])
+	sgd_seed_start=int(config['sgd_seed_start'])
+	sgd_seed_end=int(config['sgd_seed_end'])
+	init_seed_start=int(config['init_seed_start'])
+	init_seed_end=int(config['init_seed_end'])
+	weight_decay=float(config['weight_decay'])
+	train_size=int(config['train_size'])
+	test_size=int(config['test_size'])
+	if type(config['hiddenlayers_input'])==list:
+		hiddenlayers_input=list(config['hiddenlayers_input']) #Note list([1,2,3]) is the same list
+	elif type(config['hiddenlayers_input'])==str:
+		hiddenlayers_input=[int(i) for i in config['hiddenlayers_input'].split(',')]
+	learning_rate_input=float(config['learning_rate_input'])
+	train_type=str(config['train_type'])
+	P=int(config['P'])
+	train_fraction=float(config['train_fraction'])
+	weight_multiplier=float(config['weight_multiplier'])
+	cluster_arg=bool(config['cluster_arg'])
+	epochs=int(config['epochs'])
+
+	
+	
+	
 	data_seeds=[i for i in range(data_seed_start,data_seed_end)]
 	print(f' data_seeds={data_seeds}')
-
-	sgd_seed_start=int(sys.argv[3+cluster_array])
-	sgd_seed_end=int(sys.argv[4+cluster_array])
 	sgd_seeds=[i for i in range(sgd_seed_start,sgd_seed_end)]
-	print(sgd_seeds)
-	init_seed_start=int(sys.argv[5+cluster_array])
-	init_seed_end=int(sys.argv[6+cluster_array])
+	print(sgd_seeds)	
 	init_seeds=[i for i in range(init_seed_start,init_seed_end)]
 	print(init_seeds)
-	weight_decay=float(sys.argv[7+cluster_array])
-	grok_str=str(sys.argv[8+cluster_array])
-	train_size=int(str(sys.argv[9+cluster_array]))
-	print(f'train_size: {train_size}')
-	hiddenlayers_input=[int(i) for i in sys.argv[10+cluster_array].split(",")]
-	print(f'hiddenlayers_input={hiddenlayers_input},hiddenlayers_type:{type(hiddenlayers_input)},hiddenlayers types= {[type[i] for i in hiddenlayers_input]}')
-	learning_rate_input=float(sys.argv[11+cluster_array])/(10**4)
-	train_type=sys.argv[12+cluster_array]#Is this mod addition or is this Ising
-	P=int(sys.argv[13+cluster_array])#Modulation
-	train_fraction=float(sys.argv[14+cluster_array])/100#train_fraction
-	weight_multiplier=float(sys.argv[15+cluster_array])
-	cluster=bool(int(sys.argv[16+cluster_array]))
-	
-	
+		
 	print(f" seeds: {data_seeds}, sgd_seeds: {sgd_seeds},init_seeds {init_seeds}")
 	print(f" wd: {weight_decay}")
-	print(f" grok_str: {grok_str}")
-
-	if grok_str=='True':
-		grok=True
-	elif grok_str=='False':
-		grok=False
-	
-	#################Params
-	train_size=train_size
-	test_size=1000
-	#grok_locations=[0,100]#
-
-	if grok:
-		#learning_rate=learning_rate
-		weight_decay=weight_decay
-		weight_multiplier=weight_multiplier#500
-
-	else:
-		#learning_rate=10**-4
-		weight_decay=weight_decay
-		weight_multiplier=weight_multiplier#1
 	
 
 	dtype = torch.float32 # very important
@@ -842,22 +867,21 @@ if __name__ == '__main__':
 	output_dim = 2 # 10 different digits it could recognize (2 diff phases for Ising)
 	hiddenlayers=hiddenlayers_input
 	conv_channels=[2,4]
-	bs=64
+	bs=200
 
 
 	#Train params
-	epochs=5000
-	save_interval=500
+	save_interval=200
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
 
 
 	
 	desc='modadd'
-	if cluster==False:
-		root=f'../../large_files/test_runs/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
+	if cluster_arg==True:
+		root=f'../../large_files/modaddwd_lr_{learning_rate}_wm_{weight_multiplier}/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}_lr_{learning_rate}'#happens to be the same file structure in this case
 	else:
-		root=f'../../large_files/modaddwd_3e-5/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
+		root=f'../../large_files/test_runs/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
 	
 	os.makedirs(root,exist_ok=True)
 	print('makedirs called')
@@ -882,7 +906,7 @@ if __name__ == '__main__':
 			sgd_seed=sgd_seed,
 			init_seed=init_seed,
 			device=device,
-			grok=grok,
+			grok=False,
 			hiddenlayers=hiddenlayers,
 			conv_channels=conv_channels,
 			test_size=test_size,
@@ -952,7 +976,7 @@ if __name__ == '__main__':
 
 		
 		
-		save_name=f'grok_{grok_str}dataseed_{data_seed}_sgdseed_{sgd_seed}_initseed_{init_seed}_wd_{weight_decay}_wm_{weight_multiplier}_time_{int(time.time())}'
+		save_name=f'grok_dataseed_{data_seed}_sgdseed_{sgd_seed}_initseed_{init_seed}_wd_{weight_decay}_wm_{weight_multiplier}_time_{int(time.time())}'
 		run_folder=str(root)
 		# with open(str(root)+"/"+save_name, "wb") as dill_file:
 		#     dill.dump(save_object, dill_file)

@@ -54,6 +54,7 @@ class seed_average_onerun():
         self.modelinstance=None
         self.iprs=None
         self.norms=None
+        self.euclidcosine=None
     #Now I want to write scripts for the analysis function.
     
     def make_loss_curves(self):
@@ -1197,8 +1198,8 @@ class seed_average_onerun():
             removedloss_ng=non_grokked_object.train_losses-(non_grokked_object.trainargs.weightdecay)*np.array(non_grokked_object.weight_norms)#not square-rooted
         else:
             removedloss_ng=non_grokked_object.train_losses
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=removedloss_ng.train_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=removedloss_ng.test_losses,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=non_grokked_object.test_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=removedloss_ng,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
         fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=4)
         
 

@@ -1,0 +1,39 @@
+---
+data_seed_start: 0
+data_seed_end: 1
+sgd_seed_start: 0
+sgd_seed_end: 1
+init_seed_start: 0
+init_seed_end: 1
+weight_decay: 3e-5
+train_size: 300
+test_size: 1000
+learning_rate_input: !!float 5e-3
+hiddenlayers_input: [512]
+train_type: Mod
+P: 97
+train_fraction: 0.7
+weight_multiplier: 1
+cluster_arg: 0
+epochs: 10000
+
+#grokfast settings
+# data_seed_start: 0
+# data_seed_end: 1
+# sgd_seed_start: 0
+# sgd_seed_end: 1
+# init_seed_start: 0
+# init_seed_end: 1
+# weight_decay: 1e-4
+# train_size: 1000
+# test_size: 1000
+# learning_rate_input: !!float 1e-3
+# hiddenlayers_input: [200,200,200]
+# train_type: Mod
+# P: 97
+# train_fraction: 0.7
+# weight_multiplier: 8
+# cluster_arg: 0
+# epochs: 10000
+#batch_size=200
+
