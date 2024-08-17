@@ -87,7 +87,7 @@ optimization_steps = 10000
 batch_size = 200
 loss_function = 'MSE'   # 'MSE' or 'CrossEntropy'
 optimizer = 'AdamW'     # 'AdamW' or 'Adam' or 'SGD'
-weight_decay = 2
+weight_decay = 0.01
 lr = 1e-3
 initialization_scale = 8.0
 download_directory = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files"
@@ -156,11 +156,6 @@ log_steps = []
 
 steps = 0
 one_hots = torch.eye(10, 10).to(device)
-print(f'len train_loader = {len(train_loader)}')
-print(f'train_loader shape = {next(iter(train_loader))[0].shape}')
-for layer in mlp:
-    print(layer)
-
 with tqdm(total=optimization_steps) as pbar:
     for x, labels in islice(cycle(train_loader), optimization_steps):
         if (steps < 30) or (steps < 150 and steps % 10 == 0) or steps % log_freq == 0:

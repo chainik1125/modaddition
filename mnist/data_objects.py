@@ -1180,7 +1180,7 @@ class seed_average_onerun():
         else:
             yvalues_self=self.train_losses
         fig.add_trace(go.Scatter(x=list(range(len(self.train_losses))),y=yvalues_self,mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grokking train}$'),row=1,col=3)
-        fig.add_trace(go.Scatter(x=list(range(len(self.test_losses))),y=yvalues_self,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grokking test}$'),row=1,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_losses))),y=self.test_losses,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grokking test}$'),row=1,col=3)
         #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(self.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=1, col=1)
         fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=3)
         # fig.add_vrect(

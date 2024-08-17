@@ -3419,9 +3419,9 @@ if __name__== "__main__":
     def magnitude_prune_prod_mod_avg_areas_heatmap(run_object,pruning_percents,layers_pruned,epoch,by_layer=True):
         def find_closest(lst, value):
             return min(lst, key=lambda x: abs(x - value))
-
+        asked_epoch=epoch
         epoch=find_closest(run_object.model_epochs(),epoch)
-        
+        print(f'Epoch asked for: {asked_epoch}, Epoch pruned at: {epoch}')
         original_model, original_model_dic=load_model(run_object,epoch)
         original_weights = save_original_weights(original_model, layers_pruned)
         
@@ -3469,8 +3469,8 @@ if __name__== "__main__":
     
     # area_plot=magnitude_prune_prod_mod_avg_areas(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch)
     # area_plot.show()
-    epoch=29999
-    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_longer"
+    epoch=19000
+    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_negative"
     
     area_plot_mod=magnitude_prune_prod_mod_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.1','model.3','model.5'],epoch=epoch,by_layer=False)
     area_plot_mod.show()

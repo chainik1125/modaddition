@@ -1,7 +1,7 @@
 import os
 import sys
 import dill
-from itertools import islice
+
 # Add the path to the PYTHONPATH
 new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
 if new_path not in sys.path:
@@ -39,7 +39,7 @@ import functools
 from plotly.graph_objects import FigureWidget
 
 #grokfast attempt
-from grokfast import *
+from grokfast import gradfilter_ma, gradfilter_ema
 
 
 
@@ -253,7 +253,7 @@ def calculate_weight_norm(model,n):
 		weight_norm=torch.sum(flat_weights**n)
 		return weight_norm
 
-def model_update(train_type,train_loader,loss_criterion,optimizer,batch_size,fix_norm,norm,grads,use_grokfast=False,x=None,labels=None,onehots=None):
+def model_update(train_type,train_loader,loss_function,optimizer,batch_size,fix_norm,norm,grads,use_grokfast=False):
 	
 	if train_type=="Ising":
 		train_correct = 0
@@ -261,7 +261,7 @@ def model_update(train_type,train_loader,loss_criterion,optimizer,batch_size,fix
 			y_pred = model(X_train.view(batch_size, 1, 16, 16).to(device))#note- data dimension set to number of points, 1 only one channel, 16x16 for each data-point. Model transforms 2d array into 3d tensors with 4 channels
 			predicted = torch.max(y_pred.data, 1)[1]
 			train_correct += (predicted == y_train.to(device)).sum().item()
-			train_loss = loss_criterion(y_pred, y_train.to(device))
+			train_loss = loss_function(y_pred, y_train.to(device))
 
 			optimizer.zero_grad() # clears old gradients stored in previous step
 			train_loss.backward() # calculates gradient of loss function using backpropagation (stochastic)
@@ -279,10 +279,8 @@ def model_update(train_type,train_loader,loss_criterion,optimizer,batch_size,fix
 			optimizer.zero_grad()
 			y_pred=model(X_train).to(device)
 			y_train=y_train.float().to(device)
-			loss = loss_criterion(y_pred, y_train.to(device))
+			loss = loss_function(y_pred, y_train.to(device))
 			loss.backward()
-			if use_grokfast:
-				grads = gradfilter_ma(model, grads=grads, alpha=0.8, lamb=0.1)
 			optimizer.step()
 			train_loss += loss.item()
 
@@ -300,19 +298,72 @@ def model_update(train_type,train_loader,loss_criterion,optimizer,batch_size,fix
 		train_accuracy /= len(train_dataset)
 		
 	elif train_type=="MNIST":
-		#model.to(device)
-		optimizer.zero_grad()
-		y = model(x.to(device))
+		model.to(device)
+		train_correct = 0
+		train_loss = 0.0
+		one_hots = torch.eye(10, 10).to(device)
 
-		if loss_criterion == 'CrossEntropy':
-			loss = loss_fn(y, labels.to(device))
-		elif loss_criterion == 'MSE':
-			loss = nn.MSELoss()(y, onehots[labels])
-		loss.backward()
-		optimizer.step()
+		for batch, (X_train, y_train) in enumerate(train_loader):
+			X_train, y_train = X_train.to(device), y_train.to(device)
+			y_pred = model(X_train)
 
 
-		return loss.item()
+			if loss_criterion=='MSE':
+				#train_correct += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
+				predicted_labels = torch.argmax(y_pred, dim=1)
+				train_correct += torch.sum(predicted_labels == y_train.to(device))
+				train_loss = loss_function(y_pred, one_hots[y_train])
+
+			else:
+				train_correct += (predicted == y_train.to(device)).sum().item()
+				train_loss = loss_function(y_pred, y_train.to(device))
+			# Forward pass
+			
+
+			# Compute loss
+			#loss = loss_function(y_pred, y_train)
+
+			# Backward pass and optimization
+			optimizer.zero_grad()
+
+			
+			train_loss.backward()
+			if use_grokfast:
+				grads = gradfilter_ema(model, grads, alpha=0.8, lamb=0.1)
+			optimizer.step()
+
+			# Predictions and accuracy
+			# _, predicted = torch.max(y_pred.data, 1)
+			# train_correct += (predicted == y_train).sum().item()
+
+			train_loss += train_loss.item()
+			
+		train_accuracy = train_correct / train_size
+		average_train_loss = train_loss / len(train_loader)#Note that with no argument passed to a loss function, it will calculate the mean, so you just need to divide by batch number to get total mean
+		average_train_loss=average_train_loss.item()
+		#Ah I think I see the issue - you only return the first batch and you don't compute the sum.
+		# train_loss = 0.0
+		# train_accuracy = 0.0
+		# for batch in train_loader:
+		# 	X_train,y_train=batch
+		# 	optimizer.zero_grad()
+		# 	y_pred=model(X_train).to(device)
+		# 	y_train=y_train.to(device)
+		# 	loss = loss_function(y_pred, y_train.to(device))
+		# 	loss.backward()
+		# 	optimizer.step()
+		# 	train_loss += loss.item()
+
+
+		# 	if fix_norm:
+		# 		with torch.no_grad():
+		# 			new_norm = np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
+		# 			for param in model.parameters():
+		# 				param.data *= norm / new_norm
+
+
+
+		return average_train_loss,train_accuracy
 	
 def calculate_losses(train_type,test_loader,loss_function,data_points,batch_size):
 	with torch.no_grad():
@@ -350,10 +401,9 @@ def calculate_losses(train_type,test_loader,loss_function,data_points,batch_size
 			test_accuracy = compute_accuracy_mnist(model, test_loader, device, N=data_points, batch_size=batch_size)
 			
 		return test_loss,test_accuracy
-
+	
 def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
 	plot_interval=50
-
 	use_grokfast=False
 	start_time = timer()
 	first_time_training = True
@@ -368,8 +418,8 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	print(f'time to calculate l2 norm: {end-start}')
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
-
-	optimization_steps = epochs
+	
+		
 	if loss_criterion=="MSE":
 		criterion = nn.MSELoss()
 	elif loss_criterion=="CrossEntropy":
@@ -378,7 +428,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	random.seed(sgd_seed)
 	for set_seed in [torch.manual_seed, torch.cuda.manual_seed_all, np.random.seed]:
 		set_seed(sgd_seed)
-	
+		
 	if save_models:
 		save_dict0 = {'model':model.state_dict()}#'train_data':train_data, 'test_data':test_data <-- I don't need this because I'll have this saved in the data. 
 		one_run_object.models[0]=save_dict0
@@ -400,58 +450,62 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	#grokfast
 	grads=None
 
-	steps=0
-	one_hots = torch.eye(10, 10).to(device)
-	model.to(device)
-	with tqdm(total=optimization_steps) as pbar:
-		for x, labels in islice(cycle(train_loader), optimization_steps):
-			#Train the model at this epoch
-			model_update(train_type,train_loader,loss_criterion,optimizer,batch_size,fix_norm,norm,grads,use_grokfast,x,labels,one_hots)
-			steps+=1
-			pbar.update(1)
-			if steps%log_freq==0:
-				#Calculate logged things
-				train_loss,train_accuracy=calculate_losses(train_type,train_loader,criterion,train_size,batch_size)
-				test_loss,test_accuracy=calculate_losses(train_type,test_loader,criterion,train_size,batch_size)
-
-				test_losses.append(test_loss)
-				test_accuracies.append(test_accuracy)
-				train_losses.append(train_loss)
-				train_accuracies.append(train_accuracy)
-
-				model_ipr2=calculate_ipr(model,2,1)
-				model_ipr4=calculate_ipr(model,4,1)
-				model_ipr_05=calculate_ipr(model,0.5,1)
-				iprs.append([model_ipr2,model_ipr4,model_ipr_05])
-				l2norm=calculate_weight_norm(model,2)
-				norms.append(l2norm)
-
-				pbar.set_description("L: {0:1.1e}|{1:1.1e}. A: {2:2.1f}%|{3:2.1f}%".format(
-                train_losses[-1],
-                test_losses[-1],
-                train_accuracies[-1] * 100, 
-                test_accuracies[-1] * 100))
-
-
-
-
-
-			if save_models and steps%save_interval==0:
-				save_dict = {
-						'model': copy.deepcopy(model.state_dict()),
-						'optimizer': copy.deepcopy(optimizer.state_dict()),
-						# 'scheduler': scheduler.state_dict(),
-						'train_loss': train_loss,
-						'test_loss': test_loss,
-						'epoch': steps,
-					}
-				one_run_object.models[steps]=save_dict
-				
-
-
-
 	
-	
+	for i in tqdm(range(epochs)):
+
+
+		#Train the model at this epoch
+		train_loss,train_accuracy=model_update(train_type,train_loader,criterion,optimizer,batch_size,fix_norm,norm,grads,use_grokfast)
+		train_losses.append(train_loss)
+		train_accuracies.append(train_accuracy)
+
+		# Run the testing batches
+		test_loss,test_accuracy=calculate_losses(train_type,test_loader,criterion,train_size,batch_size)
+		test_losses.append(test_loss)
+		test_accuracies.append(test_accuracy)					
+		
+		#Calculate IPRs
+		model_ipr2=calculate_ipr(model,2,1)
+		model_ipr4=calculate_ipr(model,4,1)
+		model_ipr_05=calculate_ipr(model,0.5,1)
+		iprs.append([model_ipr2,model_ipr4,model_ipr_05])
+		l2norm=calculate_weight_norm(model,2)
+		norms.append(l2norm)
+
+
+		if save_models and i%save_interval==0:
+			save_dict = {
+					'model': copy.deepcopy(model.state_dict()),
+					'optimizer': copy.deepcopy(optimizer.state_dict()),
+					# 'scheduler': scheduler.state_dict(),
+					'train_loss': train_loss,
+					'test_loss': test_loss,
+					'epoch': i,
+				}
+			one_run_object.models[i]=save_dict
+			
+			# if i>0:
+			#     print(torch.equal(one_run_object.models[i]['model']['fc_layers.3.weight'],one_run_object.models[i-100]['model']['fc_layers.3.weight']))
+			# if i>1000:
+			#         fig,axs=plt.subplots(1,2)
+			#         axs[0].hist(np.ndarray.flatten(one_run_object.models[i]['model']['fc_layers.0.weight'].detach().numpy()))
+			#         axs[1].hist(np.ndarray.flatten(one_run_object.models[0]['model']['fc_layers.0.weight'].detach().numpy()))
+			#         plt.show()
+			#         exit()
+
+		if i % 50 == 0 or i == epochs-1:
+			# Print interim result
+			if train_type=="Ising": 
+				print(f"epoch: {i}, train loss: {train_loss.item():.4f}, accuracy: {train_accuracy[-1]:.4f}")
+				print(12*" " + f"test loss: {test_loss.item():.4f}, accuracy: {test_accuracy[-1]:.4f}" )
+				print(60*"*")
+			elif train_type=="Mod" or train_type=="MNIST":
+				print(f"epoch: {i}, train loss: {train_loss:.4f}, accuracy: {train_accuracy:.4f}")
+				print(12*" " + f"test loss: {test_loss:.4f}, accuracy: {test_accuracy:.4f}" )
+				print(60*"*")
+
+	#training_plot.close()#Not necessary in plotly I think, but just in case
+	print(f'\nDuration: {timer() - start_time:.0f} seconds') # print the time elapsed
 
 
 	one_run_object.train_losses=train_losses
@@ -685,7 +739,7 @@ class MLP_mnist(nn.Module):
 
 
 		self.optimizer = optimizer(params=self.parameters(), lr=learning_rate, weight_decay=weight_decay)
-		#self.init_weights()
+		self.init_weights()
 
 		with torch.no_grad():
 			for param in self.parameters():
@@ -695,12 +749,12 @@ class MLP_mnist(nn.Module):
 		x = self.model(x)
 		return x
 
-	# def init_weights(self):
-	# 	for m in self.modules():
-	# 		if isinstance(m, nn.Linear):
-	# 			nn.init.xavier_normal_(m.weight)
-	# 			if m.bias is not None:
-	# 				nn.init.zeros_(m.bias)
+	def init_weights(self):
+		for m in self.modules():
+			if isinstance(m, nn.Linear):
+				nn.init.xavier_normal_(m.weight)
+				if m.bias is not None:
+					nn.init.zeros_(m.bias)
 
 
 #mnist functions
@@ -975,7 +1029,7 @@ if __name__ == '__main__':
 
 	# set functions for neural network
 	loss_criterion="MSE" # 'MSE' or 'CrossEntropy'
-	loss_fn = nn.MSELoss()   # 'MSELoss' or 'CrossEntropyLoss'
+	loss_fn = nn.CrossEntropyLoss   # 'MSELoss' or 'CrossEntropyLoss'
 	optimizer_fn = torch.optim.Adam     # 'Adam' or 'AdamW' or 'SGD'
 	activation = nn.ReLU    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
@@ -992,9 +1046,7 @@ if __name__ == '__main__':
 
 
 	#Train params
-	log_freq=int(epochs/150)
-	save_interval=int(5*log_freq)
-	
+	save_interval=1000
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
 
@@ -1004,7 +1056,7 @@ if __name__ == '__main__':
 	if cluster_arg==False:
 		root=f'../../large_files/test_runs/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
 	else:
-		root=f'../../large_files/mnist_wd_{weight_decay}_negative/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
+		root=f'../../large_files/mnist_wd_{weight_decay}_longer/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
 	
 	os.makedirs(root,exist_ok=True)
 	print('makedirs called')

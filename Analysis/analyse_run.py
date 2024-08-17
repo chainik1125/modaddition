@@ -45,6 +45,26 @@ from cluster.cluster_run_average import ModularArithmeticDataset
 from cluster.cluster_run_average import Square, MLP
 import glob
 
+runfiles=['/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/grokfast/mnist_none_wd20e+00_usegrokfast_none.pt',
+          '/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/grokfast/mnist_ma_w100_l010_wd20e+00_usegrokfast_ma.pt']
+
+runfiles_lowwd=['/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/grokfast/mnist_ma_w100_l010_wd10e-02_usegrokfast_ma.pt',
+                '/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/grokfast/mnist_none_wd10e-02_usegrokfast_none.pt']
+
+def plot_grokfast(run_file_list):
+    fig=make_subplots(rows=1,cols=1)
+    colors=['red','blue']
+    for run_file in run_file_list:
+        run_dict=torch.load(run_file)
+
+        fig.add_trace(go.Scatter(x=run_dict['its'],y=run_dict['train_acc'],mode='lines',line=dict(color=colors[run_file_list.index(run_file)],dash='dash'),showlegend=True,name=f'Train, {run_dict["args"]["filter"]}'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=run_dict['its'],y=run_dict['val_acc'],mode='lines',line=dict(color=colors[run_file_list.index(run_file)],dash='solid'),showlegend=True,name=f'Test, {run_dict["args"]["filter"]}'),row=1,col=1)
+        
+        fig.update_yaxes(title_text='Accuracy')
+        fig.update_yaxes(title_text='Train batches')
+        fig.show()
+#plot_grokfast(runfiles_lowwd)
+
 def parse_seeds(filename):
     """Extracts x, y, z values from the filename."""
     dataseed = filename.split('dataseed_')[1].split('_')[0]
@@ -90,12 +110,22 @@ def organize_files_by_wm(source_folder, hidden_layers, description):
 source_folder = "/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_longer_duplicates"
 hidden_layers = [70, 35]  # Replace with your desired hidden layer structure
 description = "mnist"      # Replace with your desired description
-organize_files_by_wm(source_folder, hidden_layers, description)
-exit()
+#organize_files_by_wm(source_folder, hidden_layers, description)
+
 source_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_longer_duplicates_3"
 destination_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_longer_duplicates_4"
-move_duplicates(source_folder, destination_folder)
+#move_duplicates(source_folder, destination_folder)
+
+
+nongrok_foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[512]_desc_modadd_wm_0.1"
+foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[512]_desc_modadd_wm_15.0"
+
+
+grok_object=open_files_in_leaf_directories(foldername)[0]
+nongrok_object=open_files_in_leaf_directories(nongrok_foldername)[0]
+grok_object.cosine_sim(nongrok_object).show()
 exit()
+
 def manual_adamw_update(optimizer_dic, model):
     state_dict = optimizer_dic
     param_groups = state_dict['param_groups']
@@ -148,13 +178,10 @@ def manual_adamw_update(optimizer_dic, model):
 
     return total_updates, weight_decay_updates
             
-foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.01/hiddenlayer_[70, 35]_desc_mnist_wm_10.0"
 
 
-objects=open_files_in_leaf_directories(foldername)
-# for object in objects:
-#     object.traincurves_and_iprs(object,remove_wdloss=False).show()
-    
+
+
 
 
 count=0
