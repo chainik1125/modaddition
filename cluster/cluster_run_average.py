@@ -249,6 +249,41 @@ def calculate_weight_norm(model,n):
 		flat_weights = torch.cat(flat_parameters)
 		weight_norm=torch.sum(flat_weights**n)
 		return weight_norm
+
+def calculate_cosine_similarity(model1,model2,weight_keys=None):
+	cosine_tensor_list=[]
+	names_list=[]
+	with torch.no_grad():
+		def prep_models(model):
+			list_of_weights=[]
+			list_of_names=[]
+			for name, param in model.named_parameters():
+				if param.requires_grad and len(param.shape)>1:
+					list_of_weights.append(param)
+					list_of_names.append(name)
+			
+			flat_weights=torch.cat([(torch.flatten(p)) for p in list_of_weights])
+
+			return list_of_weights,flat_weights,list_of_names
+		
+		list_of_weights_1,flattened_weights_1,weight_keys_1=prep_models(model1)
+		list_of_weights_2,flattened_weights_2,weight_keys_2=prep_models(model2)
+		
+
+		flattened_cosine=nn.CosineSimilarity(dim=0,eps=1e-6)(flattened_weights_1,flattened_weights_2)
+		cosine_tensor_list.append(flattened_cosine.item())
+		names_list.append('all model weights flattened')
+		if weight_keys!=None:
+			for weight_key in weight_keys:
+				index=weight_keys_1.index(weight_key)
+				cosine=nn.CosineSimilarity(dim=-1,eps=1e-6)(torch.flatten(list_of_weights_1[index]),torch.flatten(list_of_weights_2[index]))
+				cosine_tensor_list.append(cosine.item())
+				names_list.append(weight_key)
+		cosine_tensor=torch.Tensor(cosine_tensor_list)
+		
+		return cosine_tensor,names_list
+	
+
 def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
 	plot_interval=50
 	start_time = timer()
@@ -265,6 +300,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	break_epoch=None
 	second_lr=10e-3
 	done=False
+	compare_models=50
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 	
@@ -290,6 +326,8 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		test_accuracy = []
 		iprs=[]
 		norms=[]
+		cosines=[]
+		cosine_steps=[]
 	else:
 		print("Starting additional training")
 		epochs = 2900
@@ -300,6 +338,8 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	grads = None
 	print(f'grads = {grads}')
 
+	back_compare=[]
+	back_compare_steps=[]
 	for i in tqdm(range(epochs)):
 		train_correct = 0
 		test_correct = 0
@@ -311,6 +351,13 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 
 			# Flatten input tensors to two index object with shape (batch_size, input_dims) using .view()
 			# Predict label probabilities (y_train) based on current model for input (X_train)
+		
+		if compare_models!=None:
+			if i<compare_models:
+				back_compare.append(copy.deepcopy(model))
+			if i>=compare_models:
+				back_compare.append(copy.deepcopy(model))
+			#back_compare=[copy.deepcopy(model)]
 		if train_type=="Ising":
 			for batch, (X_train, y_train) in enumerate(train_loader):
 				y_pred = model(X_train.view(batch_size, 1, 16, 16).to(device))#note- data dimension set to number of points, 1 only one channel, 16x16 for each data-point. Model transforms 2d array into 3d tensors with 4 channels
@@ -340,6 +387,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 				#grads = gradfilter_ema(model, grads=grads, alpha=0.8, lamb=1.0)
 				optimizer.step()
 				train_loss += loss.item()
+				
 				# print('now')
 				# print(break_epoch)
 				# print(done)
@@ -371,6 +419,36 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		iprs.append([model_ipr2,model_ipr4,model_ipr_05])
 		l2norm=calculate_weight_norm(model,2)
 		norms.append(l2norm)
+		if i>compare_models:
+			cosines_tensor=calculate_cosine_similarity(back_compare[0],model,weight_keys=['model.0.weight','model.2.weight'])[0]
+			cosines.append(cosines_tensor)
+			back_compare.pop(0)
+			back_steps = [p0 - p1 for p0, p1 in zip(back_compare[0].parameters(), back_compare[1].parameters())]
+
+			front_steps=[p0 - p1 for p0, p1 in zip(model.parameters(), back_compare[-1].parameters())]
+	
+
+
+			# Assume `model_template` is an instance of the model's class (same architecture)
+			back_steps_model = copy.deepcopy(back_compare[0])  # Deep copy to preserve the architecture
+
+			# Subtract the parameters
+			with torch.no_grad():  # Disable gradient computation as we're manually updating parameters
+				for p_new, p0, p1 in zip(back_steps_model.parameters(), back_compare[0].parameters(), back_compare[1].parameters()):
+					p_new.copy_(p0 - p1)
+			
+			front_steps_model = copy.deepcopy(back_compare[-1])  # Deep copy to preserve the architecture
+
+			# Subtract the parameters
+			with torch.no_grad():  # Disable gradient computation as we're manually updating parameters
+				for p_new, p0, p1 in zip(front_steps_model.parameters(), model.parameters(), back_compare[-1].parameters()):
+					p_new.copy_(p0 - p1)
+
+			cosine_steps_tensor=calculate_cosine_similarity(back_steps_model,front_steps_model,weight_keys=['model.0.weight','model.2.weight'])[0]			
+			cosine_steps.append(cosine_steps_tensor)
+
+
+
 		
 			
 
@@ -474,10 +552,14 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	one_run_object.test_accuracies=test_accuracy
 	one_run_object.iprs=iprs
 	one_run_object.norms=norms
+	
+	one_run_object.euclidcosine=torch.stack(cosines).numpy()
+	one_run_object.euclidcosinesteps=torch.stack(cosine_steps).numpy()
 
 	if cluster_arg==False:
 		# plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
-		one_run_object.traincurves_and_iprs(one_run_object).show()
+		#one_run_object.traincurves_and_iprs(one_run_object).show()
+		one_run_object.cosine_sim(one_run_object).show()
 
 
 	# data = ["data[1] is of form [train_loss, test_loss], [train_acc, test_acc]", [[train_losses, test_losses], [train_accuracy, test_accuracy]]]
