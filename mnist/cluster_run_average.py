@@ -351,6 +351,42 @@ def calculate_losses(train_type,test_loader,loss_function,data_points,batch_size
 			
 		return test_loss,test_accuracy
 
+
+def calculate_cosine_similarity(model1,model2,weight_keys=None):
+	cosine_tensor_list=[]
+	names_list=[]
+	with torch.no_grad():
+		def prep_models(model):
+			list_of_weights=[]
+			list_of_names=[]
+			for name, param in model.named_parameters():
+				if param.requires_grad and len(param.shape)>1:
+					list_of_weights.append(param)
+					list_of_names.append(name)
+			
+			flat_weights=torch.cat([(torch.flatten(p)) for p in list_of_weights])
+
+			return list_of_weights,flat_weights,list_of_names
+		
+		list_of_weights_1,flattened_weights_1,weight_keys_1=prep_models(model1)
+		list_of_weights_2,flattened_weights_2,weight_keys_2=prep_models(model2)
+		
+
+		flattened_cosine=nn.CosineSimilarity(dim=0,eps=1e-6)(flattened_weights_1,flattened_weights_2)
+		cosine_tensor_list.append(flattened_cosine.item())
+		names_list.append('all model weights flattened')
+		if weight_keys!=None:
+			for weight_key in weight_keys:
+				index=weight_keys_1.index(weight_key)
+				cosine=nn.CosineSimilarity(dim=-1,eps=1e-6)(torch.flatten(list_of_weights_1[index]),torch.flatten(list_of_weights_2[index]))
+				cosine_tensor_list.append(cosine.item())
+				names_list.append(weight_key)
+		cosine_tensor=torch.Tensor(cosine_tensor_list)
+		
+		return cosine_tensor,names_list
+	
+
+
 def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
 	plot_interval=50
 
@@ -366,6 +402,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	print(f'l2 norm: {calculate_weight_norm(model,2)}')
 	end=time.time()
 	print(f'time to calculate l2 norm: {end-start}')
+	compare_models=50
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 
@@ -391,6 +428,8 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		test_accuracies = []
 		iprs=[]
 		norms=[]
+		cosines=[]
+		cosine_steps=[]
 	else:
 		print("Starting additional training")
 		epochs = 2900

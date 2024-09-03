@@ -5,8 +5,8 @@ import dill
 # Add the path to the PYTHONPATH
 new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
 if new_path not in sys.path:
-	sys.path.append(new_path)
-	os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
+    sys.path.append(new_path)
+    os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
 
 from dataclasses import dataclass
 from timeit import default_timer as timer
@@ -30,17 +30,16 @@ import torch.nn.functional as F
 import copy
 import inspect
 import itertools
-
 #import kaleido
 
 ################Seeds
-from data_objects import seed_average_onerun#I think you need the cluster. when you set the PYTHONPATH to be Code
+from cluster.data_objects import seed_average_onerun#I think you need the cluster. when you set the PYTHONPATH to be Code
 import functools
 from plotly.graph_objects import FigureWidget
+import cluster.dynamic_plot
 
 #grokfast attempt
-from grokfast import gradfilter_ma, gradfilter_ema
-
+#from grokfast import gradfilter_ma, gradfilter_ema
 
 
 
@@ -80,9 +79,7 @@ def create_model(init_seed,model_type):
 						activation=nn.ReLU(), optimizer=torch.optim.SGD,
 						learning_rate=learning_rate, weight_decay=weight_decay, multiplier=weight_multiplier, dropout_prob=dropout_prob)
 	elif model_type=="ModMLP":
-		model=MLP(P=P,hidden=hiddenlayers,learning_rate=learning_rate,bias=True,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
-	elif model_type=="MNIST_MLP":
-		model=MLP_mnist(first_width=784,output_features=10,hidden=hiddenlayers,learning_rate=learning_rate,bias=True,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
+		model=MLP(P=P,hidden=hiddenlayers,learning_rate=learning_rate,bias=True,activation_function=activation,weight_decay=weight_decay,weight_multiplier=weight_multiplier,optimizer=optimizer_fn)
 		
 	
 	print(model)
@@ -109,17 +106,17 @@ from threading import Thread
 
 
 def start_server():
-	PORT = 8000
-	os.chdir(os.path.dirname(os.path.realpath(__file__)))  # Change directory to where the HTML file is located
-	Handler = http.server.SimpleHTTPRequestHandler
-	with socketserver.TCPServer(("", PORT), Handler) as httpd:
-		print("Server running at localhost:{}".format(PORT))
-		httpd.serve_forever()
+    PORT = 8000
+    os.chdir(os.path.dirname(os.path.realpath(__file__)))  # Change directory to where the HTML file is located
+    Handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print("Server running at localhost:{}".format(PORT))
+        httpd.serve_forever()
 
 # Function to open the browser window
 def open_browser():
-	time.sleep(2)  # Give the server some time to start
-	webbrowser.open_new("http://localhost:8000/updated_plot.html")
+    time.sleep(2)  # Give the server some time to start
+    webbrowser.open_new("http://localhost:8000/updated_plot.html")
 
 def plot_traincurves(epochs,test_accuracies,train_accuracies,test_losses,train_losses,config_dict):
 	fig=make_subplots(rows=1, cols=2, subplot_titles=("Accuracy", "Loss"))
@@ -224,16 +221,16 @@ class TrainingPlot:
 				pass  # Plotly automatically handles closing the plot
 
 def extract_top_percent(tensor, percent):
-	# Ensure the tensor is flattened
-	tensor = tensor.view(-1)
-	
-	# Calculate the number of elements to keep (top percent)
-	num_elements = int(percent * len(tensor))
-	
-	# Use torch.topk to get the top elements
-	top_values, _ = torch.topk(tensor, num_elements, sorted=False,largest=True)
-	
-	return top_values
+    # Ensure the tensor is flattened
+    tensor = tensor.view(-1)
+    
+    # Calculate the number of elements to keep (top percent)
+    num_elements = int(percent * len(tensor))
+    
+    # Use torch.topk to get the top elements
+    top_values, _ = torch.topk(tensor, num_elements, sorted=False,largest=True)
+    
+    return top_values
 
 
 def calculate_ipr(model,r,weight_share=1):
@@ -242,7 +239,7 @@ def calculate_ipr(model,r,weight_share=1):
 		flat_weights = torch.cat(flat_parameters)
 		#flat_weights=extract_top_percent(flat_weights,weight_share)
 		ipr_denom=torch.sqrt(torch.sum(flat_weights**2))**(2*r)
-		ipr_num=torch.sum(torch.abs(flat_weights)**(2*r))
+		ipr_num=torch.sum(np.abs(flat_weights)**(2*r))
 		ipr=ipr_num/ipr_denom
 		return ipr.item()
 
@@ -252,156 +249,6 @@ def calculate_weight_norm(model,n):
 		flat_weights = torch.cat(flat_parameters)
 		weight_norm=torch.sum(flat_weights**n)
 		return weight_norm
-
-def model_update(train_type,train_loader,loss_function,optimizer,batch_size,fix_norm,norm,grads,use_grokfast=False):
-	
-	if train_type=="Ising":
-		train_correct = 0
-		for batch, (X_train, y_train) in enumerate(train_loader):
-			y_pred = model(X_train.view(batch_size, 1, 16, 16).to(device))#note- data dimension set to number of points, 1 only one channel, 16x16 for each data-point. Model transforms 2d array into 3d tensors with 4 channels
-			predicted = torch.max(y_pred.data, 1)[1]
-			train_correct += (predicted == y_train.to(device)).sum().item()
-			train_loss = loss_function(y_pred, y_train.to(device))
-
-			optimizer.zero_grad() # clears old gradients stored in previous step
-			train_loss.backward() # calculates gradient of loss function using backpropagation (stochastic)
-			optimizer.step()
-
-			predicted = torch.max(y_pred.data, 1)[1]
-			train_loss=train_loss.item()
-			train_accuracy=train_correct/train_size
-				
-	elif train_type=="Mod":
-		train_loss = 0.0
-		train_accuracy = 0.0
-		for batch in train_loader:
-			X_train,y_train=batch
-			optimizer.zero_grad()
-			y_pred=model(X_train).to(device)
-			y_train=y_train.float().to(device)
-			loss = loss_function(y_pred, y_train.to(device))
-			loss.backward()
-			optimizer.step()
-			train_loss += loss.item()
-
-			if loss_criterion=='MSE':
-				train_accuracy += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
-			else:
-				train_accuracy += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
-			if fix_norm:
-				with torch.no_grad():
-					new_norm = np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
-					for param in model.parameters():
-						param.data *= norm / new_norm
-		
-		train_loss /= len(train_loader)
-		train_accuracy /= len(train_dataset)
-		
-	elif train_type=="MNIST":
-		model.to(device)
-		train_correct = 0
-		train_loss = 0.0
-		one_hots = torch.eye(10, 10).to(device)
-
-		for batch, (X_train, y_train) in enumerate(train_loader):
-			X_train, y_train = X_train.to(device), y_train.to(device)
-			y_pred = model(X_train)
-
-
-			if loss_criterion=='MSE':
-				#train_correct += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
-				predicted_labels = torch.argmax(y_pred, dim=1)
-				train_correct += torch.sum(predicted_labels == y_train.to(device))
-				train_loss = loss_function(y_pred, one_hots[y_train])
-
-			else:
-				predicted_labels = torch.argmax(y_pred, dim=1)
-				train_correct += (predicted_labels == y_train.to(device)).sum().item()
-				train_loss = loss_function(y_pred, y_train.to(device))
-			# Forward pass
-			
-
-			# Compute loss
-			#loss = loss_function(y_pred, y_train)
-
-			# Backward pass and optimization
-			optimizer.zero_grad()
-
-			
-			train_loss.backward()
-			if use_grokfast:
-				grads = gradfilter_ema(model, grads, alpha=0.8, lamb=0.1)
-			optimizer.step()
-
-			# Predictions and accuracy
-			# _, predicted = torch.max(y_pred.data, 1)
-			# train_correct += (predicted == y_train).sum().item()
-
-			train_loss += train_loss.item()
-			
-		train_accuracy = train_correct / train_size
-		average_train_loss = train_loss / len(train_loader)#Note that with no argument passed to a loss function, it will calculate the mean, so you just need to divide by batch number to get total mean
-		average_train_loss=average_train_loss.item()
-		#Ah I think I see the issue - you only return the first batch and you don't compute the sum.
-		# train_loss = 0.0
-		# train_accuracy = 0.0
-		# for batch in train_loader:
-		# 	X_train,y_train=batch
-		# 	optimizer.zero_grad()
-		# 	y_pred=model(X_train).to(device)
-		# 	y_train=y_train.to(device)
-		# 	loss = loss_function(y_pred, y_train.to(device))
-		# 	loss.backward()
-		# 	optimizer.step()
-		# 	train_loss += loss.item()
-
-
-		# 	if fix_norm:
-		# 		with torch.no_grad():
-		# 			new_norm = np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
-		# 			for param in model.parameters():
-		# 				param.data *= norm / new_norm
-
-
-
-		return average_train_loss,train_accuracy
-	
-def calculate_losses(train_type,test_loader,loss_function,data_points,batch_size):
-	with torch.no_grad():
-		if train_type=="Ising":
-			test_correct = 0
-			for batch, (X_test, y_test) in enumerate(test_loader):
-					# Apply the model
-					y_val = model(X_test.view(test_size, 1, 16, 16).to(device))
-
-					# Tally the number of correct predictions
-					predicted = torch.max(y_val.data, 1)[1]
-					test_correct += (predicted == y_test.to(device)).sum().item()
-					test_loss = loss_function(y_val, y_test.to(device))
-					test_accuracy=test_correct/test_size
-
-		elif train_type=="Mod":
-			test_loss = 0.0
-			test_accuracy = 0.0
-			for batch in test_loader:
-				X_test,y_test=batch
-				y_val=model(X_test).to(device)
-				float_y=y_test.float().clone().to(device)
-				loss = loss_function(y_val, float_y.to(device))
-				test_loss += loss.item()
-				if loss_criterion=='MSE':
-					test_accuracy += (y_val.argmax(dim=1) == float_y.argmax(dim=1)).sum().item()
-				else:
-					test_accuracy += (y_val.argmax(dim=1) == float_y.argmax(dim=1)).sum().item()
-			
-			test_loss /= len(test_loader)
-			test_accuracy /= len(test_dataset)
-		
-		elif train_type=='MNIST':
-			test_loss = compute_loss_mnist(model, test_loader, loss_criterion, device, N=data_points, batch_size=batch_size)
-			test_accuracy = compute_accuracy_mnist(model, test_loader, device, N=data_points, batch_size=batch_size)
-			
-		return test_loss,test_accuracy
 
 def calculate_cosine_similarity(model1,model2,weight_keys=None):
 	cosine_tensor_list=[]
@@ -436,9 +283,9 @@ def calculate_cosine_similarity(model1,model2,weight_keys=None):
 		
 		return cosine_tensor,names_list
 	
+
 def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
 	plot_interval=50
-	use_grokfast=False
 	start_time = timer()
 	first_time_training = True
 	epochs = epochs # how many runs through entire training data
@@ -450,6 +297,9 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	print(f'l2 norm: {calculate_weight_norm(model,2)}')
 	end=time.time()
 	print(f'time to calculate l2 norm: {end-start}')
+	break_epoch=None
+	second_lr=10e-3
+	done=False
 	compare_models=50
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
@@ -472,49 +322,161 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	if  first_time_training == True:
 		train_losses = []
 		test_losses = []
-		train_accuracies = []
-		test_accuracies = []
+		train_accuracy = []
+		test_accuracy = []
 		iprs=[]
 		norms=[]
 		cosines=[]
 		cosine_steps=[]
+		linear_decompoistion={'linear_loss':[],'non_linear_loss':[],'linear_norm':[],'non_linear_norm':[],'diff_norm':[]}
+
 	else:
 		print("Starting additional training")
 		epochs = 2900
-	norm=None
 	if fix_norm:
 		norm=np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
-	#grokfast
-	grads=None
+	#for grokfast
+
+	grads = None
+	print(f'grads = {grads}')
 
 	back_compare=[]
+	back_compare_steps=[]
 	for i in tqdm(range(epochs)):
+		train_correct = 0
+		test_correct = 0
 
+		# Run the training batches
+		
+
+			# Apply the current model to make prediction of training data
+
+			# Flatten input tensors to two index object with shape (batch_size, input_dims) using .view()
+			# Predict label probabilities (y_train) based on current model for input (X_train)
+		
 		if compare_models!=None:
-			#So... it's the same for  both conditions lool.
 			if i<compare_models:
 				back_compare.append(copy.deepcopy(model))
 			if i>=compare_models:
 				back_compare.append(copy.deepcopy(model))
+			#back_compare=[copy.deepcopy(model)]
+		if train_type=="Ising":
+			for batch, (X_train, y_train) in enumerate(train_loader):
+				y_pred = model(X_train.view(batch_size, 1, 16, 16).to(device))#note- data dimension set to number of points, 1 only one channel, 16x16 for each data-point. Model transforms 2d array into 3d tensors with 4 channels
+				predicted = torch.max(y_pred.data, 1)[1]
+				train_correct += (predicted == y_train.to(device)).sum().item()
+				train_loss = criterion(y_pred, y_train.to(device))
 
-		#Train the model at this epoch
-		train_loss,train_accuracy=model_update(train_type,train_loader,criterion,optimizer,batch_size,fix_norm,norm,grads,use_grokfast)
-		train_losses.append(train_loss)
-		train_accuracies.append(train_accuracy)
+				optimizer.zero_grad() # clears old gradients stored in previous step
+				train_loss.backward() # calculates gradient of loss function using backpropagation (stochastic)
+				optimizer.step()
 
-		# Run the testing batches
-		test_loss,test_accuracy=calculate_losses(train_type,test_loader,criterion,train_size,batch_size)
-		test_losses.append(test_loss)
-		test_accuracies.append(test_accuracy)					
-		
+				predicted = torch.max(y_pred.data, 1)[1]
+				train_losses.append(train_loss.item())
+				train_accuracy.append(train_correct/train_size)
+				
+		elif train_type=="Mod":
+			train_loss = 0.0
+			train_acc = 0.0
 
-		#model steps:
+			# with torch.no_grad():
+			# 	copied_model=copy.deepcopy(model)
+			# 	test_loss_full = 0.0
+			# 	test_loss_linear = 0.0
+			# 	test_loss_non_linear = 0.0
+			# 	test_acc = 0.0
+			# 	linear_norms=0.0
+			# 	non_linear_norms=0.0
+			# 	diff_norms=0.0
+			# 	for batch in test_loader:
+			# 		X_test,y_test=batch
+			# 		y_pred_full=copied_model(X_test).to(device)
 
-		if i>compare_models:
-			cosines_tensor=calculate_cosine_similarity(back_compare[0],model,weight_keys=None)[0]
-			cosines.append(cosines_tensor)
+			# 		non_linear_y_pred=copied_model(X_test).to(device)+copied_model(-X_test).to(device)
+			# 		linear_y_pred=y_pred_full-non_linear_y_pred
+
+
+			# 		float_y=y_test.float().clone().to(device)
+			# 		full_loss = criterion(y_pred_full, float_y)
+			# 		test_loss_full += full_loss.item()
+
+			# 		non_linear_loss=criterion(non_linear_y_pred,float_y)
+			# 		test_loss_non_linear += non_linear_loss.item()
+
+			# 		linear_loss=criterion(linear_y_pred,float_y)
+			# 		test_loss_linear += linear_loss.item()
+					
+
+			# 		linear_norm=torch.sqrt(torch.sum(linear_y_pred**2)).item()
+			# 		linear_norms+=linear_norm
+
+			# 		non_linear_norm=torch.sqrt(torch.sum(non_linear_y_pred**2)).item()
+			# 		non_linear_norms+=non_linear_norm
+
+			# 		diff_norm=torch.sqrt(torch.sum((linear_y_pred-non_linear_y_pred)**2)).item()
+			# 		diff_norms+=diff_norm
+					
+			# 		#append
+			# 	linear_decompoistion['linear_loss'].append(linear_loss.item())
+			# 	linear_decompoistion['non_linear_loss'].append(non_linear_loss.item())
+			# 	linear_decompoistion['linear_norm'].append(linear_norm)
+			# 	linear_decompoistion['non_linear_norm'].append(non_linear_norm)
+			# 	linear_decompoistion['diff_norm'].append(diff_norm)
 			
+			for batch in train_loader:
+				X_train,y_train=batch
+				optimizer.zero_grad()
+				
+				y_pred=model(X_train).to(device)
+				
+				#loss = criterion(y_pred, y_train.to(device))
 
+				y_train=y_train.float().to(device)
+				loss = criterion(y_pred, y_train.to(device))
+				loss.backward()
+				#grads = gradfilter_ema(model, grads=grads, alpha=0.8, lamb=1.0)
+				optimizer.step()
+				train_loss += loss.item()
+				
+				# print('now')
+				# print(break_epoch)
+				# print(done)
+				
+				if break_epoch!=None and i>break_epoch and done==False:
+					print(f'optimizer learning rate before change {model.optimizer.param_groups[0]["lr"]}')
+					model.optimizer.param_groups[0]['lr'] = second_lr
+					print(f'optimizer learning rate after change {model.optimizer.param_groups[0]["lr"]}')
+					done=True
+					
+				if loss_criterion=='MSE':
+					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
+				else:
+					train_acc += (y_pred.argmax(dim=1) == y_train.argmax(dim=1)).sum().item()
+				if fix_norm:
+					with torch.no_grad():
+						new_norm = np.sqrt(sum(param.pow(2).sum().item() for param in model.parameters()))
+						for param in model.parameters():
+							param.data *= norm / new_norm
+			
+			train_loss /= len(train_loader)
+			train_losses.append(train_loss)
+			train_acc /= len(train_dataset)
+			train_accuracy.append(train_acc)
+					
+		model_ipr2=calculate_ipr(model,2,1)
+		model_ipr4=calculate_ipr(model,4,1)
+		model_ipr_05=calculate_ipr(model,0.5,1)
+		iprs.append([model_ipr2,model_ipr4,model_ipr_05])
+		l2norm=calculate_weight_norm(model,2)
+		norms.append(l2norm)
+		if i>compare_models:
+			cosines_tensor=calculate_cosine_similarity(back_compare[0],model,weight_keys=['model.0.weight','model.2.weight'])[0]
+			cosines.append(cosines_tensor)
+			back_compare.pop(0)
+			back_steps = [p0 - p1 for p0, p1 in zip(back_compare[0].parameters(), back_compare[1].parameters())]
+
+			front_steps=[p0 - p1 for p0, p1 in zip(model.parameters(), back_compare[-1].parameters())]
+	
 
 
 			# Assume `model_template` is an instance of the model's class (same architecture)
@@ -522,32 +484,85 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 
 			# Subtract the parameters
 			with torch.no_grad():  # Disable gradient computation as we're manually updating parameters
-				#IT'S LATEST MODEL FIRST!!!
-				for p_new, p0, p1 in zip(back_steps_model.parameters(), back_compare[1].parameters(), back_compare[0].parameters()):
-					p_new.copy_(p1 - p0)
+				for p_new, p0, p1 in zip(back_steps_model.parameters(), back_compare[0].parameters(), back_compare[1].parameters()):
+					p_new.copy_(p0 - p1)
 			
 			front_steps_model = copy.deepcopy(back_compare[-1])  # Deep copy to preserve the architecture
 
 			# Subtract the parameters
 			with torch.no_grad():  # Disable gradient computation as we're manually updating parameters
 				for p_new, p0, p1 in zip(front_steps_model.parameters(), model.parameters(), back_compare[-1].parameters()):
-					p_new.copy_(p1 - p0)
+					p_new.copy_(p0 - p1)
 
-			cosine_steps_tensor=calculate_cosine_similarity(back_steps_model,front_steps_model,weight_keys=None)[0]			
+			cosine_steps_tensor=calculate_cosine_similarity(back_steps_model,front_steps_model,weight_keys=['model.0.weight','model.2.weight'])[0]			
 			cosine_steps.append(cosine_steps_tensor)
 
-			back_compare.pop(0)
-
-		#Calculate IPRs
-		model_ipr2=calculate_ipr(model,2,1)
-		model_ipr4=calculate_ipr(model,4,1)
-		model_ipr_05=calculate_ipr(model,0.5,1)
-		iprs.append([model_ipr2,model_ipr4,model_ipr_05])
-		l2norm=calculate_weight_norm(model,2)
-		norms.append(l2norm)
 
 
+		
+			
+
+			# Tally the number of correct predictions per epoch
+			
+			
+
+
+		# Update overall train loss (most recent batch) & accuracy (of all batches) for the epoch
+
+
+		# Run the testing batches
+		with torch.no_grad():
+			if train_type=="Ising":
+				for batch, (X_test, y_test) in enumerate(test_loader):
+						# Apply the model
+						y_val = model(X_test.view(test_size, 1, 16, 16).to(device))
+
+						# Tally the number of correct predictions
+						predicted = torch.max(y_val.data, 1)[1]
+						test_correct += (predicted == y_test.to(device)).sum().item()
+						test_loss = criterion(y_val, y_test.to(device))
+						test_losses.append(test_loss.item())
+						test_accuracy.append(test_correct/test_size)
+			elif train_type=="Mod":
+				test_loss = 0.0
+				test_acc = 0.0
+				for batch in test_loader:
+					X_test,y_test=batch
+					y_val=model(X_test).to(device)
+					float_y=y_test.float().clone().to(device)
+					loss = criterion(y_val, float_y.to(device))
+					test_loss += loss.item()
+					if loss_criterion=='MSE':
+						test_acc += (y_val.argmax(dim=1) == float_y.argmax(dim=1)).sum().item()
+					else:
+						test_acc += (y_val.argmax(dim=1) == float_y.argmax(dim=1)).sum().item()
+				
+				test_loss /= len(test_loader)
+				test_losses.append(test_loss)
+				test_acc /= len(test_dataset)
+				test_accuracy.append(test_acc)
+
+
+		#epochs_plot=list(range(len(test_accuracy)))
+		#first=True
+		# if i%plot_interval==0:
+		# 	training_plot.update(epochs_plot, test_accuracy,train_accuracy,test_losses,train_losses,first)
+		# 	first=False
+					
+
+
+		# Update test loss & accuracy for the epoch
+
+
+		
 		if save_models and i%save_interval==0:
+			# updated_fc_weights = model.fc_layers[0].weight.data
+			# if check_weights_update(initial_fc_weights, updated_fc_weights):
+			#     print("fc weights have been updated.")
+			# else:
+			#     print("fc weights have not been updated.")
+			
+			# print(save_dict0['model']['fc_layers.3.weight']==model.state_dict()['fc_layers.3.weight'])
 			save_dict = {
 					'model': copy.deepcopy(model.state_dict()),
 					'optimizer': copy.deepcopy(optimizer.state_dict()),
@@ -569,27 +584,28 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 
 		if i % 50 == 0 or i == epochs-1:
 			# Print interim result
-			if train_type=="Ising": 
+			if train_type=="Ising":
 				print(f"epoch: {i}, train loss: {train_loss.item():.4f}, accuracy: {train_accuracy[-1]:.4f}")
 				print(12*" " + f"test loss: {test_loss.item():.4f}, accuracy: {test_accuracy[-1]:.4f}" )
 				print(60*"*")
-			elif train_type=="Mod" or train_type=="MNIST":
-				print(f"epoch: {i}, train loss: {train_loss:.4f}, accuracy: {train_accuracy:.4f}")
-				print(12*" " + f"test loss: {test_loss:.4f}, accuracy: {test_accuracy:.4f}" )
+			elif train_type=="Mod":
+				print(f"epoch: {i}, train loss: {train_loss:.4f}, accuracy: {train_accuracy[-1]:.4f}")
+				print(12*" " + f"test loss: {test_loss:.4f}, accuracy: {test_accuracy[-1]:.4f}" )
 				print(60*"*")
 
 	#training_plot.close()#Not necessary in plotly I think, but just in case
 	print(f'\nDuration: {timer() - start_time:.0f} seconds') # print the time elapsed
 
-
 	one_run_object.train_losses=train_losses
 	one_run_object.test_losses=test_losses
-	one_run_object.train_accuracies=train_accuracies
-	one_run_object.test_accuracies=test_accuracies
+	one_run_object.train_accuracies=train_accuracy
+	one_run_object.test_accuracies=test_accuracy
 	one_run_object.iprs=iprs
 	one_run_object.norms=norms
+	
 	one_run_object.euclidcosine=torch.stack(cosines).numpy()
 	one_run_object.euclidcosinesteps=torch.stack(cosine_steps).numpy()
+	one_run_object.linear_decomposition=linear_decompoistion
 
 	if cluster_arg==False:
 		# plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
@@ -756,7 +772,7 @@ class Square(nn.Module):
 
 class MLP(nn.Module):
 	@store_init_args
-	def __init__(self, hidden=[512], P=97, optimizer=torch.optim.SGD, weight_multiplier=1, bias=False, learning_rate=0.01, weight_decay=0.0001):
+	def __init__(self, hidden=[512], P=97, optimizer=torch.optim.SGD,activation_function=nn.ReLU(), weight_multiplier=1, bias=False, learning_rate=0.01, weight_decay=0.0001):
 		super(MLP, self).__init__()
 		layers = []
 		input_dim = 2 * P
@@ -764,11 +780,11 @@ class MLP(nn.Module):
 		for layer_ind in range(len(hidden)):
 			if first:
 				layers.append(nn.Linear(input_dim, hidden[layer_ind], bias=bias))
-				layers.append(nn.ReLU())
+				layers.append(activation_function)
 				first = False
 			else:
 				layers.append(nn.Linear(hidden[layer_ind - 1], hidden[layer_ind], bias=bias))
-				layers.append(nn.ReLU())
+				layers.append(activation_function)
 		layers.append(nn.Linear(hidden[-1], P,bias=bias))
 		self.model = nn.Sequential(*layers)
 
@@ -795,132 +811,12 @@ class MLP(nn.Module):
 
 
 
-
-class MLP_mnist(nn.Module):
-	@store_init_args
-	def __init__(self, first_width=784,output_features=10,hidden=[70,35], optimizer=torch.optim.AdamW, activation_function=nn.ReLU(),weight_multiplier=1, bias=True, learning_rate=0.01, weight_decay=0.0001):
-		super(MLP_mnist, self).__init__()
-		layers = [nn.Flatten()]#Need this to use the MLP because the input is a 2D tensor
-		input_dim = first_width
-		first = True
-		for layer_ind in range(len(hidden)):
-			if first:
-				layers.append(nn.Linear(input_dim, hidden[layer_ind], bias=bias))
-				layers.append(activation_function)
-				first = False
-			else:
-				layers.append(nn.Linear(hidden[layer_ind - 1], hidden[layer_ind], bias=bias))
-				layers.append(activation_function)
-		layers.append(nn.Linear(hidden[-1], output_features,bias=bias))
-		self.model = nn.Sequential(*layers)
-
-
-		self.optimizer = optimizer(params=self.parameters(), lr=learning_rate, weight_decay=weight_decay)
-		self.init_weights()
-
-		with torch.no_grad():
-			for param in self.parameters():
-				param.data.mul_(weight_multiplier)
-
-	def forward(self, x):
-		x = self.model(x)
-		return x
-
-	def init_weights(self):
-		for m in self.modules():
-			if isinstance(m, nn.Linear):
-				nn.init.xavier_normal_(m.weight)
-				if m.bias is not None:
-					nn.init.zeros_(m.bias)
-
-
-#mnist functions
-
-def cycle(iterable):
-	while True:
-		for x in iterable:
-			yield x
-
-def compute_accuracy_mnist(model,test_loader, device, N=2000, batch_size=50):
-	"""Computes accuracy of `network` on `dataset`.
-	"""
-	model.eval()  # Set model to evaluation mode
-	correct = 0
-	total = 0
-
-	with torch.no_grad():
-		for x, labels in itertools.islice(test_loader, N // batch_size):
-			x, labels = x.to(device), labels.to(device)
-			logits = model(x)
-			predicted_labels = torch.argmax(logits, dim=1)
-			correct += (predicted_labels == labels).sum().item()
-			total += labels.size(0)
-
-	model.train()  # Set model back to training mode
-	return correct / total if total > 0 else 0
-	# with torch.no_grad():
-	# 	# N = min(len(dataset), N)
-	# 	# batch_size = min(batch_size, N)
-	# 	# dataset_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-	# 	correct = 0
-	# 	total = 0
-	# 	for x, labels in itertools.islice(test_loader, N // batch_size):
-	# 		logits = model(x.to(device))
-	# 		predicted_labels = torch.argmax(logits, dim=1)
-	# 		correct += torch.sum(predicted_labels == labels.to(device))
-	# 		total += x.size(0)
-	# 	return (correct / total).item()
-
-def compute_loss_mnist(model, test_loader, loss_function, device, N=2000, batch_size=50):
-	"""Computes mean loss of `network` on `dataset`.
-	"""
-	# with torch.no_grad():
-	# 	# N = min(len(dataset), N)
-	# 	# batch_size = min(batch_size, N)
-	# 	# dataset_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-	# 	total = 0
-	# 	one_hots = torch.eye(10, 10).to(device)
-	# 	total = 0
-	# 	points = 0
-	# 	for x, labels in itertools.islice(test_loader, N // batch_size):
-	# 		y = model(x.to(device))
-	# 		if loss_function == "CrossEntropy":
-	# 			total += nn.CrossEntropyLoss()(y, labels.to(device)).item()
-	# 		elif loss_function == "MSE":
-	# 			total += nn.MSELoss()(y, one_hots[labels]).item()
-	# 		points += len(labels)
-	# 	return total / points
-	model.eval()  # Set model to evaluation mode
-	total_loss = 0.0
-	points = 0
-
-	criterion = nn.CrossEntropyLoss() if loss_function == "CrossEntropy" else nn.MSELoss()
-	one_hots = torch.eye(10, 10).to(device) if loss_function == "MSE" else None
-
-	with torch.no_grad():
-		count=0
-		for x, labels in itertools.islice(test_loader, N // batch_size):
-			x, labels = x.to(device), labels.to(device)
-			y = model(x)
-			
-			if loss_function == "CrossEntropy":
-				total_loss += criterion(y, labels).item()
-			elif loss_function == "MSE":
-				total_loss += criterion(y, one_hots[labels]).item()
-				
-			points += len(labels)
-			count+=1
-
-	model.train()  # Set model back to training mode
-	return total_loss/count if points > 0 else 0
-			
-
 def create_ising_dataset(data_seed,train_size,test_size):
 	random.seed(data_seed)
 	for set_seed in [torch.manual_seed, torch.cuda.manual_seed_all, np.random.seed]:
 		set_seed(data_seed)
 	
-	if cluster_arg:
+	if cluster:
 		datafilename="../Data/IsingML_L16_traintest.pickle"
 	else:
 		datafilename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
@@ -978,19 +874,6 @@ def create_ising_dataset(data_seed,train_size,test_size):
 	# data_save=[desc,data_save1]
 	return train_loader,test_loader
 
-
-
-def load_mnist_dataset(train_points,batch_size,source_dir="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files"):
-	# load dataset
-	train = torchvision.datasets.MNIST(root=source_dir, train=True, 
-		transform=torchvision.transforms.ToTensor(), download=True)
-	test = torchvision.datasets.MNIST(root=source_dir, train=False, 
-		transform=torchvision.transforms.ToTensor(), download=True)
-	train = torch.utils.data.Subset(train, range(train_points))
-	train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True)
-	test_loader=torch.utils.data.DataLoader(test, batch_size=batch_size, shuffle=True)
-
-	return train_loader,test_loader
 class ModularArithmeticDataset(Dataset):
 	def __init__(self, P=97, seed=0,loss_criterion="MSE"):
 		self.P = P
@@ -1029,17 +912,14 @@ class ModularArithmeticDataset(Dataset):
 	def __getitem__(self, idx):
 		return (self.data[idx], self.indices[idx])
 
-import argparse
-
-
 
 if __name__ == '__main__':
-	
+
 	import yaml
 	import argparse
 
 	# Load YAML file
-	with open('mnist_config.yaml', 'r') as file:
+	with open('mod_config.yaml', 'r') as file:
 		config = yaml.safe_load(file)
 
 	# This allows you to modify any of the yaml configs from the command line.
@@ -1096,7 +976,6 @@ if __name__ == '__main__':
 	print(f" seeds: {data_seeds}, sgd_seeds: {sgd_seeds},init_seeds {init_seeds}")
 	print(f" wd: {weight_decay}")
 	
-	
 
 	dtype = torch.float32 # very important
 	# seed = seed # fixed random seed for reproducibility
@@ -1109,8 +988,8 @@ if __name__ == '__main__':
 	# set functions for neural network
 	loss_criterion="CrossEntropy" # 'MSE' or 'CrossEntropy'
 	loss_fn = nn.CrossEntropyLoss   # 'MSELoss' or 'CrossEntropyLoss'
-	optimizer_fn = torch.optim.Adam     # 'Adam' or 'AdamW' or 'SGD'
-	activation = nn.ReLU    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
+	optimizer_fn = torch.optim.AdamW    # 'Adam' or 'AdamW' or 'SGD'
+	activation = nn.ReLU()    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
 	# set parameters for neural network
 	weight_decay = weight_decay
@@ -1121,21 +1000,21 @@ if __name__ == '__main__':
 	output_dim = 2 # 10 different digits it could recognize (2 diff phases for Ising)
 	hiddenlayers=hiddenlayers_input
 	conv_channels=[2,4]
-	bs=300
+	bs=200
 
 
 	#Train params
-	save_interval=1000
+	save_interval=200
 	# set torch data type and random seeds
 	torch.set_default_dtype(dtype)
 
 
 	
-	desc='mnist'
-	if cluster_arg==False:
-		root=f'../../large_files/test_runs/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
+	desc='modadd'
+	if cluster_arg==True:
+		root=f'../../large_files/modaddwd_lr_{learning_rate}_wm_{weight_multiplier}/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}_lr_{learning_rate}'#happens to be the same file structure in this case
 	else:
-		root=f'../../large_files/mnist_wd_{weight_decay}_longer/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'#happens to be the same file structure in this case
+		root=f'../../large_files/test_runs/linear/hiddenlayer_{hiddenlayers}_desc_{desc}_wm_{weight_multiplier}'
 	
 	os.makedirs(root,exist_ok=True)
 	print('makedirs called')
@@ -1190,28 +1069,17 @@ if __name__ == '__main__':
 			train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
 			test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
 			
-		elif train_type=="MNIST":
-			if cluster_arg:
-				source_dir="../../Data"
-			else:
-				source_dir="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files"
-			train_loader,test_loader=load_mnist_dataset(train_size,args.batch_size,source_dir)
-			# print(f'len trainloader: {len(train_loader)}')
-			# print(f'batch shape {next(iter(train_loader))[0].shape}')
-			# exit()
-		 	
-			
-		print(f'test loader params:\n size of one batch: {next(iter(test_loader))[0].shape},\n Number of batches {len(iter(test_loader))}')
-		print(f'train loader params:\n size of one batch: {next(iter(train_loader))[0].shape},\n Number of batches {len(iter(train_loader))}')
 		
+		
+
+
+
 		save_object.train_loader=train_loader
 		save_object.test_loader=test_loader
 		if train_type=="Ising":
 			model=create_model(init_seed=init_seed,model_type="CNN")
 		elif train_type=="Mod":
 			model=create_model(init_seed=init_seed,model_type="ModMLP")
-		elif train_type=="MNIST":
-			model=create_model(init_seed=init_seed,model_type="MNIST_MLP")
 		
 
 		print(f'model {train_type}')
@@ -1236,12 +1104,12 @@ if __name__ == '__main__':
 		
 		
 
-		train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.batch_size,one_run_object=save_object,train_type=train_type,loss_criterion=args.loss_criterion,plot_as_train=(not cluster_arg),config_dict=config_dict)
+		train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.train_size,one_run_object=save_object,train_type=train_type,loss_criterion=args.loss_criterion,plot_as_train=(not cluster),config_dict=config_dict)
 		
 
 		
 		
-		save_name=f'dataseed_{data_seed}_sgdseed_{sgd_seed}_initseed_{init_seed}_wd_{weight_decay}_wm_{weight_multiplier}_time_{int(time.time())}'
+		save_name=f'grok_dataseed_{data_seed}_sgdseed_{sgd_seed}_initseed_{init_seed}_wd_{weight_decay}_wm_{weight_multiplier}_time_{int(time.time())}'
 		run_folder=str(root)
 		# with open(str(root)+"/"+save_name, "wb") as dill_file:
 		#     dill.dump(save_object, dill_file)

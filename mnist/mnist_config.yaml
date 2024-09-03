@@ -5,8 +5,8 @@ sgd_seed_start: 0
 sgd_seed_end: 1
 init_seed_start: 0
 init_seed_end: 1
-weight_decay: 0.1
-train_size: 300
+weight_decay: 0.01
+train_size: 500
 test_size: 1000
 learning_rate_input: !!float 1e-4
 hiddenlayers_input: [70,35]

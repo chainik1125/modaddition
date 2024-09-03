@@ -423,18 +423,15 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 			cosines_tensor=calculate_cosine_similarity(back_compare[0],model,weight_keys=['model.0.weight','model.2.weight'])[0]
 			cosines.append(cosines_tensor)
 			back_compare.pop(0)
-			back_steps = [p0 - p1 for p0, p1 in zip(back_compare[0].parameters(), back_compare[1].parameters())]
 
-			front_steps=[p0 - p1 for p0, p1 in zip(model.parameters(), back_compare[-1].parameters())]
 	
-
 
 			# Assume `model_template` is an instance of the model's class (same architecture)
 			back_steps_model = copy.deepcopy(back_compare[0])  # Deep copy to preserve the architecture
 
 			# Subtract the parameters
 			with torch.no_grad():  # Disable gradient computation as we're manually updating parameters
-				for p_new, p0, p1 in zip(back_steps_model.parameters(), back_compare[0].parameters(), back_compare[1].parameters()):
+				for p_new, p0, p1 in zip(back_steps_model.parameters(), back_compare[1].parameters(), back_compare[0].parameters()):
 					p_new.copy_(p0 - p1)
 			
 			front_steps_model = copy.deepcopy(back_compare[-1])  # Deep copy to preserve the architecture

@@ -56,6 +56,7 @@ class seed_average_onerun():
         self.norms=None
         self.euclidcosine=None
         self.euclidcosinesteps=None
+        self.linear_decomposition=None
     #Now I want to write scripts for the analysis function.
     
     def make_loss_curves(self):
@@ -604,7 +605,8 @@ class seed_average_onerun():
 
     def weights_histogram_epochs2(self,non_grokked_object):
         print('this one?')
-        epochs=self.model_epochs()[50:250][0::50]+[self.model_epochs()[-1]]#self.model_epochs()[::5]#[self.model_epochs()[0]]+[self.model_epochs()[5]]+self.model_epochs()[50:250][0::10]+[self.model_epochs()[-1]]
+        #epochs=self.model_epochs()[50:250][0::50]+[self.model_epochs()[-1]]#self.model_epochs()[::5]#[self.model_epochs()[0]]+[self.model_epochs()[5]]+self.model_epochs()[50:250][0::10]+[self.model_epochs()[-1]]
+        epochs=self.model_epochs()
         ng_epochs=non_grokked_object.model_epochs()
         if epochs!=ng_epochs:
             print('Grokked and non-grokked epochs not the same!')
@@ -1265,6 +1267,13 @@ class seed_average_onerun():
     def cosine_sim(self,non_grokked_object,remove_wdloss=False):
         titles=[r'$\text{(a) Grokking accuracy in training}$',r'$\text{(b) Learning accuracy in training}$',r'$\text{(c) Grokking loss in training}$',r'$\text{(d) Learning loss in training}$']+[r'$\text{(e) Full network cosine}$',r'$\text{Layer 1 cosine}$',r'$\text{Layer 2 cosine}$',r'$\text{Full network step changes}$']
         fig=make_subplots(rows=2,cols=4,subplot_titles=titles)
+        titles2=[r'$\text{(a) Grokking accuracy in training}$',r'$\text{(b) Learning accuracy in training}$',r'$\text{(c) Grokking loss in training}$',r'$\text{(d) Learning loss in training}$']+[r'$\text{(e) Full network cosine}$',r'$\text{Full network step changes}$']
+        fig = make_subplots(
+            rows=2, cols=4,
+            specs=[
+                [{"colspan": 1}, {"colspan": 1}, {"colspan": 1}, {"colspan": 1}],
+                [{"colspan": 2}, None, {"colspan": 2}, None]],
+                subplot_titles=titles2)
 
         fig.add_trace(go.Scatter(x=list(range(len(self.test_accuracies))),y=self.train_accuracies,mode='lines',line=dict(color='red',dash='dash'),showlegend=True,name=r'$\text{Grokking train}$'),row=1,col=1)
         fig.add_trace(go.Scatter(x=list(range(len(self.test_accuracies))),y=self.test_accuracies,mode='lines',line=dict(color='red',dash='solid'),showlegend=True,name=r'$\text{Grokking test}$'),row=1,col=1)
@@ -1302,12 +1311,9 @@ class seed_average_onerun():
         #     row=2,
         #     col=1  # No border line
         #     )
-        if remove_wdloss:
-            removedloss_ng=non_grokked_object.train_losses-(non_grokked_object.trainargs.weightdecay)*np.array(non_grokked_object.weight_norms)#not square-rooted
-        else:
-            removedloss_ng=non_grokked_object.train_losses
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=non_grokked_object.test_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
-        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=removedloss_ng,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=non_grokked_object.train_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=non_grokked_object.test_losses,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
         fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=4)
         
 
@@ -1316,15 +1322,16 @@ class seed_average_onerun():
         fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.euclidcosine[:,0]))),y=np.array(non_grokked_object.euclidcosine)[:,0],mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Learn euclid whole network}$'),row=2,col=1)
         fig.update_yaxes(title_text=r'$\text{All layer cosine similarity}$',row=2,col=1)
 
-        for layer_index in range(1,self.euclidcosine.shape[1]):
-            fig.add_trace(go.Scatter(x=list(range(len(self.euclidcosine))),y=np.array(self.euclidcosine)[:,layer_index],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok IPR r=4}$'),row=2,col=1+layer_index)
-            fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.euclidcosine))),y=np.array(non_grokked_object.euclidcosine)[:,layer_index],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn IPR r=4}$'),row=2,col=1+layer_index)
-            fig.update_yaxes(title_text=fr'Layer {str(layer_index)} cosine sim ',row=2,col=1+layer_index)
+        #If you want layers
+        # for layer_index in range(1,self.euclidcosine.shape[1]):
+        #     fig.add_trace(go.Scatter(x=list(range(len(self.euclidcosine))),y=np.array(self.euclidcosine)[:,layer_index],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok IPR r=4}$'),row=2,col=1+layer_index)
+        #     fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.euclidcosine))),y=np.array(non_grokked_object.euclidcosine)[:,layer_index],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn IPR r=4}$'),row=2,col=1+layer_index)
+        #     fig.update_yaxes(title_text=fr'Layer {str(layer_index)} cosine sim ',row=2,col=1+layer_index)
 
         if self.euclidcosine.shape[1]<4:
-            fig.add_trace(go.Scatter(x=list(range(len(self.euclidcosinesteps[:,0]))),y=self.euclidcosinesteps[:,0],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok weight norm}$'),row=2,col=1+self.euclidcosine.shape[1])
-            fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.euclidcosinesteps[:,0]))),y=non_grokked_object.euclidcosinesteps[:,0],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn weight norm}$'),row=2,col=1+self.euclidcosine.shape[1])
-            fig.update_yaxes(title_text=r'$\text{Cosine of steps}$',row=2,col=self.euclidcosine.shape[1]+1)
+            fig.add_trace(go.Scatter(x=list(range(len(self.euclidcosinesteps[:,0]))),y=self.euclidcosinesteps[:,0],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok weight norm}$'),row=2,col=3)
+            fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.euclidcosinesteps[:,0]))),y=non_grokked_object.euclidcosinesteps[:,0],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn weight norm}$'),row=2,col=3)
+            fig.update_yaxes(title_text=r'$\text{Cosine of steps}$',row=2,col=3)
 
 
 
@@ -1367,6 +1374,108 @@ class seed_average_onerun():
         fig.update_layout(title_text=f'Training curves: hidden layers={(self.trainargs.hiddenlayers,non_grokked_object.trainargs.hiddenlayers)},wd={self.trainargs.weight_decay,non_grokked_object.trainargs.weight_decay},wm={self.trainargs.weight_multiplier,non_grokked_object.trainargs.weight_multiplier},train size={(self.trainargs.train_size,non_grokked_object.trainargs.train_size)},train frac={(self.trainargs.train_fraction,non_grokked_object.trainargs.train_fraction)}, lr={(self.trainargs.lr,non_grokked_object.trainargs.lr)}')
         return fig
     
+
+    def linear_decomposition_plot(self,non_grokked_object):
+        titles=[r'$\text{(a) Grokking accuracy in training}$',r'$\text{(b) Learning accuracy in training}$',r'$\text{(c) Grokking loss in training}$',r'$\text{(d) Learning loss in training}$',
+        r'$\text{(e) Grok linear and non-linear loss - test}$',r'$\text{Learn linear and non-linear loss - test}$',r'$\text{Grok linear and non-linear norms - test}$',r'$\text{Learn linear and non-linear norms - test}$',
+        r'$\text{(e) Grok linear and non-linear loss - train}$',r'$\text{Learn linear and non-linear loss - train}$',r'$\text{Grok linear and non-linear norms - train}$',r'$\text{Learn linear and non-linear norms - train}$']
+
+
+        fig=make_subplots(rows=3,cols=4,subplot_titles=titles)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_accuracies))),y=self.train_accuracies,mode='lines',line=dict(color='red',dash='dash'),showlegend=True,name=r'$\text{Grokking train}$'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_accuracies))),y=self.test_accuracies,mode='lines',line=dict(color='red',dash='solid'),showlegend=True,name=r'$\text{Grokking test}$'),row=1,col=1)
+        
+        fig.update_yaxes(title_text=r'$\text{Accuracy}$',row=1,col=1)
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_accuracies))),y=non_grokked_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learning train}$'),row=1,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_accuracies))),y=non_grokked_object.test_accuracies,mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Learning test}$'),row=1,col=2)
+        fig.update_yaxes(title_text=r'$\text{Accuracy}$',row=1,col=2)
+        #losses
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.train_losses))),y=self.train_losses,mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grokking train}$'),row=1,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.test_losses))),y=self.test_losses,mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grokking test}$'),row=1,col=3)
+        #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(self.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=1, col=1)
+        fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=3)
+
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.train_losses))),y=non_grokked_object.train_losses,mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learning train}$'),row=1,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_losses))),y=non_grokked_object.test_losses,mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learning test}$'),row=1,col=4)
+        fig.update_yaxes(title_text=r'$\text{Cross entropy loss}$',type='log',row=1,col=4)
+        
+        #Test decomposition plots
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['linear_loss_test']))),y=self.linear_decomposition['linear_loss_test'],mode='lines',line=dict(color='red',dash='dash'),showlegend=True,name=r'$\text{Grok linear loss test}$'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['non_linear_loss_test']))),y=self.linear_decomposition['non_linear_loss_test'],mode='lines',line=dict(color='red',dash='dot'),showlegend=True,name=r'$\text{Grok non-linear loss test}$'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['full_loss_test']))),y=self.linear_decomposition['full_loss_test'],mode='lines',line=dict(color='red',dash='solid'),showlegend=True,name=r'$\text{Grok full loss test}$'),row=2,col=1)
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['linear_loss_test']))),y=non_grokked_object.linear_decomposition['linear_loss_test'],mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learn linear loss test}$'),row=2,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['non_linear_loss_test']))),y=non_grokked_object.linear_decomposition['non_linear_loss_test'],mode='lines',line=dict(color='blue',dash='dot'),showlegend=True,name=r'$\text{Learn non-linear loss test}$'),row=2,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['full_loss_test']))),y=non_grokked_object.linear_decomposition['full_loss_test'],mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Learn full loss test}$'),row=2,col=2)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['linear_norm_test']))),y=self.linear_decomposition['linear_norm_test'],mode='lines',line=dict(color='red',dash='dash'),showlegend=True,name=r'$\text{Grok linear norm test}$'),row=2,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['non_linear_norm_test']))),y=self.linear_decomposition['non_linear_norm_test'],mode='lines',line=dict(color='red',dash='dot'),showlegend=True,name=r'$\text{Grok non-linear norm test}$'),row=2,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['diff_norm_test']))),y=self.linear_decomposition['diff_norm_test'],mode='lines',line=dict(color='red',dash='solid'),showlegend=True,name=r'$\text{Grok diff norm test}$'),row=2,col=3)
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['linear_norm_test']))),y=non_grokked_object.linear_decomposition['linear_norm_test'],mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learn linear norm test }$'),row=2,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['non_linear_norm_test']))),y=non_grokked_object.linear_decomposition['non_linear_norm_test'],mode='lines',line=dict(color='blue',dash='dot'),showlegend=True,name=r'$\text{Learn non-linear norm test}$'),row=2,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['diff_norm_test']))),y=non_grokked_object.linear_decomposition['diff_norm_test'],mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Learn diff norm test}$'),row=2,col=4)
+
+        #Train decomposition plots
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['linear_loss_train']))),y=self.linear_decomposition['linear_loss_train'],mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grok linear loss train}$'),row=3,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['non_linear_loss_train']))),y=self.linear_decomposition['non_linear_loss_train'],mode='lines',line=dict(color='red',dash='dot'),showlegend=False,name=r'$\text{Grok non-linear loss train}$'),row=3,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['full_loss_train']))),y=self.linear_decomposition['full_loss_train'],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok full loss train}$'),row=3,col=1)
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['linear_loss_train']))),y=non_grokked_object.linear_decomposition['linear_loss_train'],mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learn linear loss train}$'),row=3,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['non_linear_loss_train']))),y=non_grokked_object.linear_decomposition['non_linear_loss_train'],mode='lines',line=dict(color='blue',dash='dot'),showlegend=False,name=r'$\text{Learn non-linear loss train}$'),row=3,col=2)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['full_loss_train']))),y=non_grokked_object.linear_decomposition['full_loss_train'],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn full loss train}$'),row=3,col=2)
+
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['linear_norm_train']))),y=self.linear_decomposition['linear_norm_train'],mode='lines',line=dict(color='red',dash='dash'),showlegend=False,name=r'$\text{Grok linear norm train}$'),row=3,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['non_linear_norm_train']))),y=self.linear_decomposition['non_linear_norm_train'],mode='lines',line=dict(color='red',dash='dot'),showlegend=False,name=r'$\text{Grok non-linear norm train}$'),row=3,col=3)
+        fig.add_trace(go.Scatter(x=list(range(len(self.linear_decomposition['diff_norm_train']))),y=self.linear_decomposition['diff_norm_train'],mode='lines',line=dict(color='red',dash='solid'),showlegend=False,name=r'$\text{Grok diff norm train}$'),row=3,col=3)
+
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['linear_norm_train']))),y=non_grokked_object.linear_decomposition['linear_norm_train'],mode='lines',line=dict(color='blue',dash='dash'),showlegend=False,name=r'$\text{Learn linear norm train}$'),row=3,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['non_linear_norm_train']))),y=non_grokked_object.linear_decomposition['non_linear_norm_train'],mode='lines',line=dict(color='blue',dash='dot'),showlegend=False,name=r'$\text{Learn non-linear norm train}$'),row=3,col=4)
+        fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.linear_decomposition['diff_norm_train']))),y=non_grokked_object.linear_decomposition['diff_norm_train'],mode='lines',line=dict(color='blue',dash='solid'),showlegend=False,name=r'$\text{Learn diff norm train}$'),row=3,col=4)
+
+
+        fig.update_xaxes(title_text=r'$\text{Epoch}$')
+
+        fig.update_layout(
+            #title='Example Plot',
+            #legend=dict(
+            #    x=1,  # Position legend outside the plot area
+            #    xanchor='auto',  # Automatically determine the best horizontal position
+            #    y=1,  # Position at the top of the plot
+            #    yanchor='auto'  # Automatically determine the best vertical position
+            #),
+            margin=dict(  # Adjust margins to provide more space
+                l=20,  # Left margin
+                r=150,  # Right margin increased to prevent overlap
+                t=50,  # Top margin
+                b=20   # Bottom margin
+                ))
+        grids=False
+        for i in range(1,3):
+            for j in range(1,3):
+                fig.update_xaxes(showgrid=grids, row=i, col=j)  # Disable x-axis grid lines
+                fig.update_yaxes(showgrid=grids, row=i, col=j)  # Disable y-axis grid lines
+        #acc
+
+        #fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(non_grokked_object.train_accuracies), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=2, col=1)
+
+        # fig.update_xaxes(title_text="Epoch", row=1, col=1)
+        # fig.update_yaxes(title_text="Loss",type='log', row=1, col=1)
+        # fig.update_xaxes(title_text="Epoch", row=1, col=1)
+        # fig.update_yaxes(title_text="Loss",type='log', row=1, col=2)
+
+        # fig.update_xaxes(title_text="Epoch", row=2, col=1)
+        # fig.update_yaxes(title_text="Accuracy", row=2, col=1)
+
+        # fig.update_xaxes(title_text="Epoch", row=2, col=2)
+        # fig.update_yaxes(title_text="Accuracy", row=2, col=2)
+
+        fig.update_layout(title_text=f'Training curves: hidden layers={(self.trainargs.hiddenlayers,non_grokked_object.trainargs.hiddenlayers)},wd={self.trainargs.weight_decay,non_grokked_object.trainargs.weight_decay},wm={self.trainargs.weight_multiplier,non_grokked_object.trainargs.weight_multiplier},train size={(self.trainargs.train_size,non_grokked_object.trainargs.train_size)},train frac={(self.trainargs.train_fraction,non_grokked_object.trainargs.train_fraction)}, lr={(self.trainargs.lr,non_grokked_object.trainargs.lr)}')
+        return fig
 
     def correlation_epochs(self,non_grokked_object,sortby,neuron_index,images_tensor,feature_funcs,dataset):
         epochs=self.model_epochs()[0:4]+[self.model_epochs()[5]]+self.model_epochs()[10:350][0::50]+[self.model_epochs()[-1]]

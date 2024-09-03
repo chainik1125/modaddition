@@ -33,7 +33,7 @@ import copy
 #import kaleido
 
 ################Seeds
-from cluster.data_objects import seed_average_onerun
+from mnist.data_objects import seed_average_onerun
 from mnist.cluster_run_average import MLP_mnist
 from Analysis.activations_Ising import open_files_in_leaf_directories,load_model
 from cluster.cluster_run_average import TrainArgs
@@ -117,13 +117,43 @@ destination_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcl
 #move_duplicates(source_folder, destination_folder)
 
 
+#cosine_plots
+# nongrok_foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[70, 35]_desc_mnist_wm_1.0"
+# foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[70, 35]_desc_mnist_wm_10.0"
+
+
+# grok_object=open_files_in_leaf_directories(foldername)[0]
+
+
+
+# nongrok_object=open_files_in_leaf_directories(nongrok_foldername)[0]
+# methods = [func for func in dir(nongrok_object) if callable(getattr(nongrok_object, func)) and not func.startswith("__")]
+
+# grok_object.cosine_sim(nongrok_object).show()
+
+
+#Linear plots
 nongrok_foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[512]_desc_modadd_wm_0.1"
 foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[512]_desc_modadd_wm_15.0"
 
 
 grok_object=open_files_in_leaf_directories(foldername)[0]
+
 nongrok_object=open_files_in_leaf_directories(nongrok_foldername)[0]
+
+print(f'trainargs grok: {vars(grok_object.trainargs)}')
+print(f'trainargs nongrok: {vars(nongrok_object.trainargs)}')
+
+
+
+#methods = [func for func in dir(nongrok_object) if callable(getattr(nongrok_object, func)) and not func.startswith("__")]
+
+#grok_object.linear_decomposition_plot(nongrok_object).show()
 grok_object.cosine_sim(nongrok_object).show()
+grok_object.traincurves_and_iprs(nongrok_object).show()
+grok_object.weights_histogram_epochs2(nongrok_object).show()
+
+
 exit()
 
 def manual_adamw_update(optimizer_dic, model):
