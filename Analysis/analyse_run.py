@@ -36,13 +36,13 @@ import copy
 from mnist.data_objects import seed_average_onerun
 from mnist.cluster_run_average import MLP_mnist
 from Analysis.activations_Ising import open_files_in_leaf_directories,load_model
-from cluster.cluster_run_average import TrainArgs
-from cluster.cluster_run_average import CNN
-from cluster.cluster_run_average import CNN_nobias
+from mod_add_cluster.cluster_run_average import TrainArgs
+from mod_add_cluster.cluster_run_average import CNN
+from mod_add_cluster.cluster_run_average import CNN_nobias
 from contextlib import contextmanager
 import functools
-from cluster.cluster_run_average import ModularArithmeticDataset
-from cluster.cluster_run_average import Square, MLP
+from mod_add_cluster.cluster_run_average import ModularArithmeticDataset
+from mod_add_cluster.cluster_run_average import Square, MLP
 import glob
 
 runfiles=['/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/grokfast/mnist_none_wd20e+00_usegrokfast_none.pt',
