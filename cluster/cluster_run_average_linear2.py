@@ -5,8 +5,8 @@ import dill
 # Add the path to the PYTHONPATH
 new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
 if new_path not in sys.path:
-    sys.path.append(new_path)
-    os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
+	sys.path.append(new_path)
+	os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
 
 from dataclasses import dataclass
 from timeit import default_timer as timer
@@ -106,17 +106,17 @@ from threading import Thread
 
 
 def start_server():
-    PORT = 8000
-    os.chdir(os.path.dirname(os.path.realpath(__file__)))  # Change directory to where the HTML file is located
-    Handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        print("Server running at localhost:{}".format(PORT))
-        httpd.serve_forever()
+	PORT = 8000
+	os.chdir(os.path.dirname(os.path.realpath(__file__)))  # Change directory to where the HTML file is located
+	Handler = http.server.SimpleHTTPRequestHandler
+	with socketserver.TCPServer(("", PORT), Handler) as httpd:
+		print("Server running at localhost:{}".format(PORT))
+		httpd.serve_forever()
 
 # Function to open the browser window
 def open_browser():
-    time.sleep(2)  # Give the server some time to start
-    webbrowser.open_new("http://localhost:8000/updated_plot.html")
+	time.sleep(2)  # Give the server some time to start
+	webbrowser.open_new("http://localhost:8000/updated_plot.html")
 
 def plot_traincurves(epochs,test_accuracies,train_accuracies,test_losses,train_losses,config_dict):
 	fig=make_subplots(rows=1, cols=2, subplot_titles=("Accuracy", "Loss"))
@@ -221,16 +221,16 @@ class TrainingPlot:
 				pass  # Plotly automatically handles closing the plot
 
 def extract_top_percent(tensor, percent):
-    # Ensure the tensor is flattened
-    tensor = tensor.view(-1)
-    
-    # Calculate the number of elements to keep (top percent)
-    num_elements = int(percent * len(tensor))
-    
-    # Use torch.topk to get the top elements
-    top_values, _ = torch.topk(tensor, num_elements, sorted=False,largest=True)
-    
-    return top_values
+	# Ensure the tensor is flattened
+	tensor = tensor.view(-1)
+	
+	# Calculate the number of elements to keep (top percent)
+	num_elements = int(percent * len(tensor))
+	
+	# Use torch.topk to get the top elements
+	top_values, _ = torch.topk(tensor, num_elements, sorted=False,largest=True)
+	
+	return top_values
 
 
 def calculate_ipr(model,r,weight_share=1):
@@ -326,9 +326,67 @@ def linear_decomposition(model,criterion,data_loader):
 	return loss_full,loss_linear,loss_non_linear,linear_norms,non_linear_norms,diff_norms
 		
 		
-			
+def split_weights(back_steps_model,front_steps_model,weight_keys,split_into=10):
+	model_diff = copy.deepcopy(back_steps_model)
+
+	with torch.no_grad():
+		differences = []
+		front_abs_values = []
+		back_abs_values= []
+	
+		for param_front, param_back, param_diff in zip(front_steps_model.parameters(), back_steps_model.parameters(), model_diff.parameters()):
+			param_diff.copy_(param_front - param_back)
+			differences.append(param_diff.view(-1))  # Flatten
+			front_abs_values.append(param_front.abs().view(-1))  # Flatten and take absolute value of front steps
+			back_abs_values.append(param_back.abs().view(-1))
+	# Concatenate all parameters into single tensors
+	all_differences = torch.cat(differences)
+	all_front_abs_values = torch.cat(front_abs_values)
+	all_back_abs_values = torch.cat(back_abs_values)
+
+	# Sort the absolute values of front steps and get indices
+	sorted_abs_front_values, indices = torch.sort(all_front_abs_values)
+	sorted_abs_back_values, indices = torch.sort(all_back_abs_values)
+
+	# Use the sorted indices to order the differences accordingly
+	sorted_differences = all_differences[indices]
+
+	ratio_differences=all_differences[indices]/(all_back_abs_values[indices]+1e-8)
+	# Calculate the mean of each decile based on the sorted absolute front values
+	deciles = []
+	num_elements = sorted_abs_front_values.numel()
+	decile_size = num_elements // split_into
+
+	for i in range(split_into):
+		start_idx = i * decile_size
+		end_idx = (i + 1) * decile_size if i < split_into-1 else num_elements
+		#decile_mean = sorted_differences[start_idx:end_idx].abs().mean()
+		decile_mean = ratio_differences[start_idx:end_idx].mean()#.abs()?
+		deciles.append(decile_mean)
+
+	# Convert the list of means into a tensor
+	decile_means = torch.tensor(deciles)
+	
+
+	
+	return decile_means			
 		
 		
+import torch
+
+def sample_indices(input_tensor, num_samples):
+	# Get the total number of elements in the input tensor
+	with torch.no_grad():
+		dimensions = input_tensor.shape
+		# Generate random indices for each dimension
+		sampled_indices = torch.stack([torch.randint(0, dim, (num_samples,)) for dim in dimensions], dim=-1)
+		#samples=input_tensor[tuple(sampled_indices.T)]#Clever - remember tuple is how you need to tuple to call the index from within the tensor so here you have a tensor of tuples.
+		
+	
+	
+	return sampled_indices
+
+# Example usage:
 
 
 def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,batch_size,one_run_object,loss_criterion,train_type,config_dict,plot_as_train=False):
@@ -347,11 +405,49 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	break_epoch=None
 	second_lr=10e-3
 	done=False
-	compare_models=50
+	compare_models=1
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
+	weight_samples=[]
+	bias_samples=[]
+	random_weight_samples=1000
+	random_bias_sample=5
 	
+	with torch.no_grad():
+		weight_indices = [sample_indices(weight, random_weight_samples) for weight in model.parameters() if weight.dim() > 1]
+		bias_indices = [sample_indices(bias, random_bias_sample) for bias in model.parameters() if bias.dim() == 1]
+	# 	weight_tensors=[weight for weight in model.parameters() if weight.dim() > 1]
+
+	# 	sampled_weights=torch.stack([weight[tuple(indices.T)] for weight, indices in zip(weight_tensors, weight_indices)],dim=0)#Clever - remember tuple is how you need to tuple to call the index from within the tensor so here you have a tensor of tuples.
+	# 	weight_samples.append(sampled_weights)
+	
+	
+	# with torch.no_grad():
+	# 	bias_indices = [sample_indices(bias, random_bias_sample) for bias in model.parameters() if bias.dim() == 1]
+	# 	bias_tensors=[bias for bias in model.parameters() if bias.dim() == 1]
 		
+	# 	sampled_biases=torch.stack([bias[tuple(indices.T)] for bias, indices in zip(bias_tensors, bias_indices)],dim=0)
+	# 	bias_samples.append(sampled_biases)
+	
+	def get_samples(model,weight_indices,bias_indices):
+		weight_tensors=[weight for weight in model.parameters() if weight.dim() > 1]
+		bias_tensors=[bias for bias in model.parameters() if bias.dim() == 1]
+		with torch.no_grad():
+			sampled_weights=torch.stack([weight[tuple(indices.T)] for weight, indices in zip(weight_tensors, weight_indices)],dim=0)
+			sampled_biases=torch.stack([bias[tuple(indices.T)] for bias, indices in zip(bias_tensors, bias_indices)],dim=0)
+		return sampled_weights,sampled_biases
+
+	inital_weights_sample,initial_biases_sample=get_samples(model,weight_indices,bias_indices)
+	weight_samples.append(inital_weights_sample)
+	bias_samples.append(initial_biases_sample)
+
+	
+	
+	
+
+
+
+
 	if loss_criterion=="MSE":
 		criterion = nn.MSELoss()
 	elif loss_criterion=="CrossEntropy":
@@ -375,6 +471,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		norms=[]
 		cosines=[]
 		cosine_steps=[]
+		decile_split=[]
 		linear_decomposition_dict={'full_loss_test':[],'linear_loss_test':[],'non_linear_loss_test':[],'linear_norm_test':[],'non_linear_norm_test':[],'diff_norm_test':[],
 		'full_loss_train':[],'linear_loss_train':[],'non_linear_loss_train':[],'linear_norm_train':[],'non_linear_norm_train':[],'diff_norm_train':[]}
 	else:
@@ -485,9 +582,15 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 		iprs.append([model_ipr2,model_ipr4,model_ipr_05])
 		l2norm=calculate_weight_norm(model,2)
 		norms.append(l2norm)
+		epoch_weight_samples,epoch_bias_samples=get_samples(model,weight_indices,bias_indices)
+		weight_samples.append(epoch_weight_samples)
+		bias_samples.append(epoch_bias_samples)
 		if i>compare_models:
+			#Isn't this redundant? No I think this is for the full model - the next part is for the steps.
+			
 			cosines_tensor=calculate_cosine_similarity(back_compare[0],model,weight_keys=['model.0.weight','model.2.weight'])[0]
 			cosines.append(cosines_tensor)
+			#Want to wrie a similar function but for just getting the steps.
 			back_compare.pop(0)
 
 	
@@ -509,7 +612,15 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 
 			cosine_steps_tensor=calculate_cosine_similarity(back_steps_model,front_steps_model,weight_keys=['model.0.weight','model.2.weight'])[0]			
 			cosine_steps.append(cosine_steps_tensor)
-
+			decile_split_tensor=split_weights(back_steps_model,front_steps_model,split_into=10,weight_keys=['model.0.weight','model.2.weight'])
+			decile_split.append(decile_split_tensor)
+			
+			#print(f'decile split tensor reversed:\n {decile_split_tensor[::-1]}') <-- why doesn't this work?
+			
+			
+			
+			
+			
 
 
 		
@@ -620,6 +731,9 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	one_run_object.euclidcosinesteps=torch.stack(cosine_steps).numpy()
 
 	one_run_object.linear_decomposition=linear_decomposition_dict
+	one_run_object.decile_means=torch.stack(decile_split).numpy()
+	one_run_object.weight_samples=torch.stack(weight_samples).numpy()
+	one_run_object.bias_samples=torch.stack(weight_samples).numpy()
 
 
 	# data = ["data[1] is of form [train_loss, test_loss], [train_acc, test_acc]", [[train_losses, test_losses], [train_accuracy, test_accuracy]]]
@@ -1133,8 +1247,77 @@ if __name__ == '__main__':
 			# plot_traincurves(list(range(len(test_accuracy))),test_accuracy,train_accuracy,test_losses,train_losses,config_dict).show()
 			#one_run_object.traincurves_and_iprs(one_run_object).show()
 			save_object.cosine_sim(save_object).show()
-			print(f'liner decomp plot')
-			save_object.linear_decomposition_plot(save_object).show()
+			#print(f'liner decomp plot')
+			#save_object.linear_decomposition_plot(save_object).show()
+
+			#code for decile plot
+			def decile_plot(saved_object,nongrokked_object):
+				import plotly.colors as pc
+
+				# Define the number of lines
+				split_into=save_object.decile_means.shape[-1]
+				num_lines = split_into
+
+
+				# Create a color scale from red to very pale blue
+				colorscale = [
+					'rgb(255, 0, 0)',  # Red
+					'rgb(255, 153, 153)',  # Light red
+					'rgb(204, 204, 255)'  # Very pale blue
+				]
+
+				# Generate a set of colors for each line
+				colors = pc.sample_colorscale(colorscale, num_lines)
+
+				fig=make_subplots(rows=1,cols=1,subplot_titles=[])
+				for i in range(split_into):
+					fig.add_trace(go.Scatter(x=np.arange(0,len(saved_object.decile_means[:,i])),y=saved_object.decile_means[:,i],mode='lines',line=dict(color=colors[i], width=2), name=f'{100*(i/split_into):.0f}%-'+f'{100*((i+1)/split_into):.0f}%'+f' weights by magnitude'  ),row=1,col=1)
+				fig.update_layout(title_text=f'Ratio of weight update to initial weight magnitude split by weight magnitude, step (m)=1')
+				return fig
+			
+			decile_plot(save_object,save_object).show()
+
+			def weight_sample_plot(saved_object,nongrokked_object):
+				import plotly.colors as pc
+
+				# Define the number of lines
+
+				weight_samples=saved_object.weight_samples.shape[-1]
+				layers=saved_object.weight_samples.shape[1]
+
+				num_lines = weight_samples
+
+
+				# Create a color scale from red to very pale blue
+				colorscale = [
+					'rgb(255, 0, 0)',  # Red
+					'rgb(255, 153, 153)',  # Light red
+					'rgb(204, 204, 255)'  # Very pale blue
+				]
+
+				# Generate a set of colors for each line
+				colors = pc.sample_colorscale(colorscale, num_lines)
+
+				fig=make_subplots(rows=2,cols=1,subplot_titles=[])
+				#fig=make_subplots(rows=2,cols=layers,subplot_titles=['Whole network random weight sample']+[f'Layer {i+1}' for i in range(layers)],specs=[[{"colspan": layers}, None], [None] * layers])
+				
+				for i in range(weight_samples):
+					#whole network:
+					for j in range(layers):
+						fig.add_trace(go.Scatter(x=np.arange(0,len(saved_object.weight_samples[:,j,i])),y=saved_object.weight_samples[:,j,i],mode='lines',line=dict(color=colors[i], width=2),showlegend=False),row=1,col=1)
+						#fig.add_trace(go.Scatter(x=np.arange(0,len(saved_object.weight_samples[:,j,i])),y=saved_object.weight_samples[:,j,i],mode='lines',line=dict(color=colors[i], width=2),showlegend=False),row=2,col=1+j)
+				        #fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_accuracies))),y=non_grokked_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learning train}$'),row=1,col=2)
+				fig.add_trace(go.Scatter(x=list(range(len(saved_object.test_accuracies))),y=saved_object.test_accuracies,mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Test}$'),row=2,col=1)
+				fig.add_trace(go.Scatter(x=list(range(len(saved_object.train_accuracies))),y=saved_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Train}$'),row=2,col=1)
+				fig.update_yaxes(title_text="Accuracy", row=2, col=1)
+				fig.update_yaxes(title_text="Sampled weight", row=1, col=1)
+				fig.update_xaxes(title_text="Epochs", row=1, col=1)
+				fig.update_layout(title_text=f'Random weight samples, samples {saved_object.weight_samples.shape[-1]}, lr={saved_object.trainargs.lr}, wd={saved_object.trainargs.weight_decay}, wm={saved_object.trainargs.weight_multiplier}')
+				return fig
+
+			weight_sample_plot(save_object,save_object).show()
+
+
 			
 	
 	# while True:

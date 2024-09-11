@@ -450,7 +450,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	print(f'l2 norm: {calculate_weight_norm(model,2)}')
 	end=time.time()
 	print(f'time to calculate l2 norm: {end-start}')
-	compare_models=50
+	compare_models=1
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 	
