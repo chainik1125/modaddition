@@ -50,7 +50,7 @@ class seed_average_onerun():
         self.neuroncorrs=None #Will be a dictionary with epoch, neuron indices as the objects.
         self.trainargs=None
         self.modelclass=None
-        self.modelconfig=None
+        self.modelconfig=None 
         self.modelinstance=None
         self.iprs=None
         self.norms=None

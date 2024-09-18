@@ -33,10 +33,10 @@ import itertools
 #import kaleido
 
 ################Seeds
-from mod_add_cluster.data_objects import seed_average_onerun#I think you need the cluster. when you set the PYTHONPATH to be Code
+from cluster.data_objects import seed_average_onerun#I think you need the cluster. when you set the PYTHONPATH to be Code
 import functools
 from plotly.graph_objects import FigureWidget
-import mod_add_cluster.dynamic_plot
+import cluster.dynamic_plot
 
 #grokfast attempt
 #from grokfast import gradfilter_ma, gradfilter_ema
@@ -405,7 +405,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 	break_epoch=None
 	second_lr=10e-3
 	done=False
-	compare_models=1
+	compare_models=1 #m in slack discussion
 	#training_plot = TrainingPlot(plot_as_train)
 	#os.open('dynamic_plot.html')
 	weight_samples=[]
@@ -486,6 +486,7 @@ def train(epochs,initial_model,save_interval,train_loader,test_loader,sgd_seed,b
 
 	back_compare=[]
 	back_compare_steps=[]
+	#start training loop.
 	for i in tqdm(range(epochs)):
 		train_correct = 0
 		test_correct = 0

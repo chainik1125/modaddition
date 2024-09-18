@@ -2351,6 +2351,7 @@ def manual_config_moddadd(run_object):
 def open_files_in_leaf_directories(root_dir):
     all_files=[]
     for dirpath, dirnames, filenames in tqdm(os.walk(root_dir),desc='Folders loaded',leave=False):
+        
         # Check if the current directory is a leaf directory
         if not dirnames:
             for filename in filenames:
@@ -2360,7 +2361,7 @@ def open_files_in_leaf_directories(root_dir):
                             single_run = torch.load(in_strm,map_location=device)
                                             # Do something with the content if needed
                             all_files.append(single_run)
-                    #print(f'file opened')
+                    print(f'file opened')
                 except Exception as e:
                     print(f"Failed to open {file_path}: {e}")
     return all_files
@@ -2407,7 +2408,7 @@ if __name__== "__main__":
     data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_1.0_time_1719658785"
 
 
-    dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/Ising_Code/Data/IsingML_L16_traintest.pickle"
+    dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/old_ising_code/Data/IsingML_L16_traintest.pickle"
     
     
     #seed average folder - standard param
@@ -3469,12 +3470,12 @@ if __name__== "__main__":
     
     # area_plot=magnitude_prune_prod_mod_avg_areas(run_object=all_run_folder,pruning_percents=np.linspace(0,1,20),layers_pruned=['model.0','model.2'],epoch=epoch)
     # area_plot.show()
-    epoch=19000
-    all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_negative"
+    # epoch=19000
+    # all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcluster/mnist_wd_0.1_negative"
     
-    area_plot_mod=magnitude_prune_prod_mod_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.1','model.3','model.5'],epoch=epoch,by_layer=False)
-    area_plot_mod.show()
-    exit()
+    # area_plot_mod=magnitude_prune_prod_mod_avg_areas_heatmap(run_object=all_run_folder,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.1','model.3','model.5'],epoch=epoch,by_layer=False)
+    # area_plot_mod.show()
+    # exit()
 
     def combine_dictionaries(path_list):
         import datetime
@@ -3504,16 +3505,17 @@ if __name__== "__main__":
     #           #'/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_mnist_wd_1.0_5-8-2024,10:53.pickle']
     # combine_dictionaries(dicpaths)
     # exit()
-    # wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_combined_mnist_7-8-2024, 10:18.pickle"
-    # plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
-    # plot_loss.show()
-    # plot_acc.show()
-    # exit()
+    #wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_combined_mnist_7-8-2024, 10:18.pickle"
+    wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_mod_combined_1-8-2024_min_43.pickle"
+    plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
+    plot_loss.show()
+    plot_acc.show()
+    exit()
     # print(f'keys')
     
     #single_run.traincurves_and_iprs(single_run_ng).show()
     
-    magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
+    #magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
     exit()
 
 

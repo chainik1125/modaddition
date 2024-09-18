@@ -36,13 +36,13 @@ import copy
 from mnist.data_objects import seed_average_onerun
 from mnist.cluster_run_average import MLP_mnist
 from Analysis.activations_Ising import open_files_in_leaf_directories,load_model
-from mod_add_cluster.cluster_run_average import TrainArgs
-from mod_add_cluster.cluster_run_average import CNN
-from mod_add_cluster.cluster_run_average import CNN_nobias
+from cluster.cluster_run_average import TrainArgs
+from cluster.cluster_run_average import CNN
+from cluster.cluster_run_average import CNN_nobias
 from contextlib import contextmanager
 import functools
-from mod_add_cluster.cluster_run_average import ModularArithmeticDataset
-from mod_add_cluster.cluster_run_average import Square, MLP
+from cluster.cluster_run_average import ModularArithmeticDataset
+from cluster.cluster_run_average import Square, MLP
 import glob
 
 runfiles=['/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/grokfast/mnist_none_wd20e+00_usegrokfast_none.pt',
@@ -133,8 +133,8 @@ destination_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcl
 
 
 #Linear plots
-nongrok_foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[512]_desc_modadd_wm_0.1"
-foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/hiddenlayer_[512]_desc_modadd_wm_15.0"
+nongrok_foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/linear/hiddenlayer_[512]_desc_modadd_wm_17.0"
+foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/linear/hiddenlayer_[512]_desc_modadd_wm_0.11"
 
 
 grok_object=open_files_in_leaf_directories(foldername)[0]
@@ -145,6 +145,9 @@ print(f'trainargs grok: {vars(grok_object.trainargs)}')
 print(f'trainargs nongrok: {vars(nongrok_object.trainargs)}')
 
 
+#grok_object.linear_decomposition_plot(nongrok_object).show()
+#grok_object.traincurves_and_iprs(nongrok_object).show()
+#grok_object.cosine_sim(nongrok_object).show()
 
 #methods = [func for func in dir(nongrok_object) if callable(getattr(nongrok_object, func)) and not func.startswith("__")]
 
@@ -174,7 +177,33 @@ def make_fourier_basis(object,p):
     fourier_basis = torch.stack(fourier_basis, dim=0)
     return fourier_basis, fourier_basis_names
 
+def make_fourier_basis2(object,p):
+    #Basically stolen from Nanda. Does the symmetry argument he used hold here?
+
+    fourier_basis_cos = []
+    fourier_basis_cos.append(torch.ones(p)/np.sqrt(p))
+    fourier_basis_sin=[]
+    fourier_basis_sin.append(torch.zeros(p)/np.sqrt(p))
+    fourier_basis_cos_names = ['Const, p=0']
+    fourier_basis_sin_names=['Const, p=0']
+    # Note that if p is even, we need to explicitly add a term for cos(kpi), ie
+    # alternating +1 and -1
+    for i in range(1, p):
+        fourier_basis_cos.append(torch.cos(2*torch.pi*torch.arange(p)*i/p))
+        fourier_basis_sin.append(torch.sin(2*torch.pi*torch.arange(p)*i/p))
+        fourier_basis_cos[-1]/=fourier_basis_cos[-1].norm()
+        fourier_basis_sin[-1]/=fourier_basis_sin[-1].norm()
+        fourier_basis_cos_names.append(f'cos {i}')
+        fourier_basis_sin_names.append(f'sin {i}')
+    fourier_basis_cos = torch.stack(fourier_basis_cos, dim=0)
+    fourier_basis_sin = torch.stack(fourier_basis_sin, dim=0)
+    return fourier_basis_cos, fourier_basis_cos_names,fourier_basis_sin,fourier_basis_sin_names
+
+
+
 fourier_basis, fourier_basis_names=make_fourier_basis(nongrok_object,2*nongrok_object.trainargs.P)
+
+
 # print(f'fourier_basis shape: {fourier_basis.shape}')
 # fig=make_subplots(rows=1,cols=1)
 # fig.add_trace(go.Heatmap(z=fourier_basis@fourier_basis.T),row=1,col=1)
@@ -195,6 +224,8 @@ for batch in trainloader:
 weights=[p for p in model.parameters() if p.dim()>1]
 
 fourier_transformed_input_weights= weights[0]@fourier_basis.T
+print(f'fourier transformed input weights shape: {fourier_transformed_input_weights.shape}')
+
 fourier_input_norms=fourier_transformed_input_weights.pow(2).sum(0)
 
 def transform_input(twop_vectors):
@@ -251,6 +282,9 @@ def transform_tensors(twop_vectors):
 
 
 fourier_basis=make_fourier_basis(nongrok_object,nongrok_object.trainargs.P)[0]
+
+
+
 fourier_basis_2=make_fourier_basis(nongrok_object,2*nongrok_object.trainargs.P)[0]
 
 transformed_tensor=transform_tensors(inputs)
@@ -331,9 +365,14 @@ print(f'all_twop_inputs_2 shape: {all_twop_inputs_2.shape}')
 all_psquared_inputs=transform_tensors(all_twop_inputs_2)
 print(f'all_psquared_inputs shape: {all_psquared_inputs.shape}')
 
+print(fourier_basis.shape)
 
 
-fourier_all_psquared=fourier_basis.T @ all_psquared_inputs@ fourier_basis
+
+#can change back to fourier_basis from fourier_basis_new
+fourier_all_psquared=fourier_basis @ all_psquared_inputs@ fourier_basis.T
+print(f'fourier_all_psquared shape: {fourier_all_psquared.shape}')
+
 transformed_fourier= torch.cat([fourier_all_psquared[:, 0, :], fourier_all_psquared[:, 1, :]], dim=1)
 print(f'fourier shape: {fourier_all_psquared.shape}')
 print(f'transformed_fourier shape: {transformed_fourier.shape}')
@@ -372,23 +411,50 @@ def comp_and_fourier_norms(runobject):
     all_psquared_inputs=transform_tensors(all_twop_inputs)
     fourier_basis=make_fourier_basis(runobject,runobject.trainargs.P)[0]
 
+
+
+
     fourier_all_psquared=fourier_basis.T @ all_psquared_inputs@ fourier_basis
     transformed_fourier= torch.cat([fourier_all_psquared[:, 0, :], fourier_all_psquared[:, 1, :]], dim=1)
-
     input_matrix_outputs=all_twop_inputs_2@(weights[0].T)
     fourier_matrix_outputs=transformed_fourier@(weights[0].T)
     fourier_matrix_outputs=convert_output_NPP(fourier_matrix_outputs,all_psquared_inputs)
+    print(f'transformed fourier shape: {transformed_fourier.shape}')
 
-    fourier_matrix_outputs_layer2=(weights[1].T)@fourier_basis
+    fourier_basis_cos,_,fourier_basis_sin,_ = make_fourier_basis2(runobject,runobject.trainargs.P)
+    f2_cos=fourier_basis_cos @ all_psquared_inputs@ fourier_basis_cos.T
+    tf2_cos= torch.cat([f2_cos[:, 0, :], f2_cos[:, 1, :]], dim=1)
+    fmo_cos=tf2_cos@(weights[0].T)
+    fmo_cos=convert_output_NPP(fmo_cos,all_psquared_inputs)
+    print(f'fmo_cos shape: {fmo_cos.shape}')
 
+
+    f2_sin=fourier_basis_sin @ all_psquared_inputs@ fourier_basis_sin.T
+    tf2_sin= torch.cat([f2_sin[:, 0, :], f2_sin[:, 1, :]], dim=1)
+    fmo_sin=tf2_sin@(weights[0].T)
+    fmo_sin=convert_output_NPP(fmo_sin,all_psquared_inputs)
+    print(f'fmo_sin shape: {fmo_sin.shape}')
+
+
+
+    print(f'fourier_matrix_outputs shape: {fourier_matrix_outputs.shape}')
+    fourier_matrix_outputs_layer2=fourier_basis.T@weights[1]
+    output_layer2=weights[1]
+    
 
     normed_output=(input_matrix_outputs.pow(2).sum(-1)).pow(1/2)
     fourier_normed_output=(fourier_matrix_outputs.pow(2).sum(-1)).pow(1/2)
     fourier_normed_output_layer2=(fourier_matrix_outputs_layer2.pow(2).sum(0)).pow(1/2)
     normed_output_layer2=weights[1].pow(2).sum(-1).pow(1/2)
+
+
+    
+    fmo_cos_normed_output=(fmo_cos.pow(2).sum(-1)).pow(1/2)
+    fmo_sin_normed_output=(fmo_sin.pow(2).sum(-1)).pow(1/2)
+
     
 
-    return normed_output,fourier_normed_output,normed_output_layer2,fourier_normed_output_layer2
+    return normed_output,fourier_normed_output,fmo_cos_normed_output,fmo_sin_normed_output,output_layer2,fourier_matrix_outputs_layer2
 
 # def matrix_heatmap(grokobject,nongrokbject=None):
 #     objects=1
@@ -432,13 +498,15 @@ def matrix_heatmap(grokobject,nongrokobject=None):
 
     if nongrok_object is not None:
         objects+=1
-        nongrok_comp_output,nongrok_fourier_output,nongrok_comp_output_layer2,nongrok_fourier_output_layer2=comp_and_fourier_norms(nongrok_object)
+        nongrok_comp_output,nongrok_fourier_output,nongrok_fmo_cos,nongrok_fmo_sin,nongrok_comp_output_layer2,nongrok_fourier_output_layer2=comp_and_fourier_norms(nongrok_object)
         comp_output.append(nongrok_comp_output)
         fourier_output.append(nongrok_fourier_output)
 
-    grok_comp_output,grok_fourier_output,grok_comp_output_layer2,grok_fourier_output_layer2=comp_and_fourier_norms(grokobject)
+    grok_comp_output,grok_fourier_output,grok_fmo_cos,grok_fmo_sin,grok_comp_output_layer2,grok_fourier_output_layer2=comp_and_fourier_norms(grokobject)
     comp_output.append(grok_comp_output)
     fourier_output.append(grok_fourier_output)
+
+
 
     #layer 1 `rollout' fourier:
     epoch=grokobject.model_epochs()[-1]
@@ -449,11 +517,13 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     grok_fourier_layer1=(fourier_matrix_outputs_layer1.pow(2).sum(0)).pow(1/2)
     grok_comp_layer1=(weights[0].pow(2).sum(0)).pow(1/2)
 
+
+
     
     nongrok_model= load_model(nongrokobject,epoch)[0]
     nongrok_weights=[p for p in nongrok_model.parameters() if p.dim()>1]
-    nongrok_fourier_basis=make_fourier_basis(nongrokobject,2*nongrokobject.trainargs.P)[0]
-    nongrok_fourier_matrix_outputs_layer1=(weights[0])@fourier_basis.T
+    
+    nongrok_fourier_matrix_outputs_layer1=(nongrok_weights[0])@fourier_basis.T
     nongrok_fourier_layer1=(nongrok_fourier_matrix_outputs_layer1.pow(2).sum(0)).pow(1/2)
     nongrok_comp_layer1=(nongrok_weights[0].pow(2).sum(0)).pow(1/2)
 
@@ -521,19 +591,51 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     # fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_output_layer2.shape[0]),y=nongrok_fourier_output_layer2.detach().numpy()/np.max(nongrok_fourier_output_layer2.detach().numpy()),name='Learn - Fourier',mode='lines',line=dict(color='blue')),row=2,col=1)
     # fig2.add_trace(go.Scatter(x=np.arange(0,grok_fourier_output_layer2.shape[0]),y=grok_fourier_output_layer2.detach().numpy()/np.max(grok_fourier_output_layer2.detach().numpy()),name='Grok - Fourier',mode='lines',line=dict(color='red')),row=2,col=2)
     
-    fig1.add_trace(go.Scatter(x=np.arange(0,nongrok_comp_layer1.shape[0]),y=nongrok_comp_layer1.detach().numpy(),name='Learn - Comp',mode='lines',line=dict(color='blue')),row=1,col=1)
-    fig1.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_layer1.shape[0]),y=nongrok_fourier_layer1.detach().numpy(),name='Learn - Fourier',mode='lines',line=dict(color='orange')),row=1,col=1)
+    fig1.add_trace(go.Scatter(x=np.arange(0,nongrok_comp_layer1.shape[0]),y=nongrok_comp_layer1.detach().numpy()/(np.max(nongrok_comp_layer1.detach().numpy())),name='Learn - Comp',mode='lines',line=dict(color='blue')),row=1,col=1)
+    fig1.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_layer1.shape[0]),y=nongrok_fourier_layer1.detach().numpy()/(np.max(nongrok_fourier_layer1.detach().numpy())),name='Learn - Fourier',mode='lines',line=dict(color='orange')),row=1,col=1)
 
-    fig1.add_trace(go.Scatter(x=np.arange(0,grok_comp_layer1.shape[0]),y=grok_comp_layer1.detach().numpy(),name='Grok - Comp',mode='lines',line=dict(color='red')),row=1,col=2)
-    fig1.add_trace(go.Scatter(x=np.arange(0,grok_comp_layer1.shape[0]),y=grok_fourier_layer1.detach().numpy(),name='Grok - Fourier',mode='lines',line=dict(color='black')),row=1,col=2)
+    fig1.add_trace(go.Scatter(x=np.arange(0,grok_comp_layer1.shape[0]),y=grok_comp_layer1.detach().numpy()/(torch.max(grok_comp_layer1).item()),name='Grok - Comp',mode='lines',line=dict(color='red')),row=1,col=2)
+    fig1.add_trace(go.Scatter(x=np.arange(0,grok_comp_layer1.shape[0]),y=grok_fourier_layer1.detach().numpy()/torch.max(grok_fourier_layer1).item(),name='Grok - Fourier',mode='lines',line=dict(color='black')),row=1,col=2)
 
-    fig1.update_layout(title_text='Layer 1 Fourier and Computational norms')
+    fig1.update_layout(title_text='Layer 1 Fourier and Computational norms - "rollout"')
     fig1.update_xaxes(title_text='Component',row=1)
     #fig2.update_xaxes(title_text='Component - Fourier',row=2)
-    fig1.update_yaxes(title_text='Norm')
+    fig1.update_yaxes(title_text='Norm, normalized by max value')
     #fig2.update_yaxes(range=[0,1])
 
 
+
+    fig11=make_subplots(rows=2,cols=2,subplot_titles=['Computational basis norms - Learn','Computational basis norms - Grok','Fourier basis norms - Learn','Fourier basis norms - Grok'])
+    
+    grok_flat_comp=torch.flatten(grok_comp_output)
+    grok_flat_fourier=torch.flatten(grok_fourier_output)
+    nongrok_flat_comp=torch.flatten(nongrok_comp_output)
+    nongrok_flat_fourier=torch.flatten(nongrok_fourier_output)
+
+
+    fig11.add_trace(go.Scatter(x=np.arange(0,len(nongrok_flat_comp.detach().numpy())),y=nongrok_flat_comp.detach().numpy()/torch.max(nongrok_flat_comp).item(),name='Learn - Comp',mode='markers',marker=dict(color='orange')),row=1,col=1)
+    fig11.add_trace(go.Scatter(x=np.arange(0,len(nongrok_flat_comp.detach().numpy())),y=nongrok_flat_comp.detach().numpy()/torch.max(nongrok_flat_comp).item(),name='Learn - Fourier',mode='markers',marker=dict(color='blue')),row=1,col=2)
+
+    fig11.add_trace(go.Scatter(x=np.arange(0,len(grok_flat_comp.detach().numpy())),y=grok_flat_fourier.detach().numpy()/torch.max(grok_flat_fourier).item(),name='Grok - Comp',mode='markers',marker=dict(color='black')),row=2,col=1)
+    fig11.add_trace(go.Scatter(x=np.arange(0,len(grok_flat_comp.detach().numpy())),y=grok_flat_fourier.detach().numpy()/torch.max(grok_flat_fourier).item(),name='Grok - Fourier',mode='markers',marker=dict(color='red')),row=2,col=2)
+    
+    fig11.update_layout(title_text='Norms layer 1 - flattened')
+    fig11.update_xaxes(title_text='Component')
+    fig11.update_yaxes(title_text='Norm, normalized by max value')
+    
+    
+
+
+    #############
+    grok_comp_norms_layer2=(grok_comp_output_layer2.pow(2).sum(-1)).pow(1/2)
+    nongrok_comp_norms_layer2=(nongrok_comp_output_layer2.pow(2).sum(-1)).pow(1/2)
+
+    grok_fourier_norms_layer2=(grok_fourier_output_layer2.pow(2).sum(-1)).pow(1/2)
+    nongrok_fourier_norms_layer2=(nongrok_fourier_output_layer2.pow(2).sum(-1)).pow(1/2)
+
+    
+
+    
 
 
     fig2=make_subplots(rows=1,cols=2,subplot_titles=['Computational basis norms - Learn','Computational basis norms - Grok','Fourier basis norms - Learn','Fourier basis norms - Grok'])
@@ -544,11 +646,11 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     # fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_output_layer2.shape[0]),y=nongrok_fourier_output_layer2.detach().numpy()/np.max(nongrok_fourier_output_layer2.detach().numpy()),name='Learn - Fourier',mode='lines',line=dict(color='blue')),row=2,col=1)
     # fig2.add_trace(go.Scatter(x=np.arange(0,grok_fourier_output_layer2.shape[0]),y=grok_fourier_output_layer2.detach().numpy()/np.max(grok_fourier_output_layer2.detach().numpy()),name='Grok - Fourier',mode='lines',line=dict(color='red')),row=2,col=2)
     
-    fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_comp_output_layer2.shape[0]),y=nongrok_comp_output_layer2.detach().numpy(),name='Learn - Comp',mode='lines',line=dict(color='blue')),row=1,col=1)
-    fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_output_layer2.shape[0]),y=nongrok_fourier_output_layer2.detach().numpy(),name='Learn - Fourier',mode='lines',line=dict(color='orange')),row=1,col=1)
+    fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_comp_norms_layer2.shape[0]),y=nongrok_comp_norms_layer2.detach().numpy(),name='Learn - Comp',mode='lines',line=dict(color='orange')),row=1,col=1)
+    fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_norms_layer2.shape[0]),y=nongrok_fourier_norms_layer2.detach().numpy(),name='Learn - Fourier',mode='lines',line=dict(color='blue')),row=1,col=1)
 
-    fig2.add_trace(go.Scatter(x=np.arange(0,grok_comp_output_layer2.shape[0]),y=grok_comp_output_layer2.detach().numpy(),name='Grok - Comp',mode='lines',line=dict(color='red')),row=1,col=2)
-    fig2.add_trace(go.Scatter(x=np.arange(0,grok_comp_output_layer2.shape[0]),y=grok_fourier_output_layer2.detach().numpy(),name='Grok - Fourier',mode='lines',line=dict(color='black')),row=1,col=2)
+    fig2.add_trace(go.Scatter(x=np.arange(0,grok_comp_norms_layer2.shape[0]),y=grok_comp_norms_layer2.detach().numpy(),name='Grok - Comp',mode='lines',line=dict(color='black')),row=1,col=2)
+    fig2.add_trace(go.Scatter(x=np.arange(0,grok_fourier_norms_layer2.shape[0]),y=grok_fourier_norms_layer2.detach().numpy(),name='Grok - Fourier',mode='lines',line=dict(color='red')),row=1,col=2)
 
     fig2.update_layout(title_text='Layer 2 Fourier and Computational norms')
     fig2.update_xaxes(title_text='Component',row=1)
@@ -557,7 +659,34 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     #fig2.update_yaxes(range=[0,1])
 
 
-    fig4=make_subplots(rows=2,cols=2,subplot_titles=['Computational basis PCA - Learn','Computational basis PCA - Grok','Fourier basis PCA - Learn','Fourier basis PCA - Grok'])
+
+    fig2norm=make_subplots(rows=1,cols=2,subplot_titles=['Computational basis norms - Learn','Computational basis norms - Grok','Fourier basis norms - Learn','Fourier basis norms - Grok'])
+    
+    max_non_grok_comp=torch.max(nongrok_comp_norms_layer2).item()
+    max_non_grok_fourier=torch.max(nongrok_fourier_norms_layer2).item()
+    max_grok_comp=torch.max(grok_comp_norms_layer2).item()
+    max_grok_fourier=torch.max(grok_fourier_norms_layer2).item()
+
+    # fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_comp_output_layer2.shape[0]),y=nongrok_comp_output_layer2.detach().numpy()/np.max(nongrok_comp_output_layer2.detach().numpy()),name='Learn - Comp',mode='lines',line=dict(color='blue')),row=1,col=1)
+    # fig2.add_trace(go.Scatter(x=np.arange(0,grok_comp_output_layer2.shape[0]),y=grok_comp_output_layer2.detach().numpy()/np.max(grok_comp_output_layer2.detach().numpy()),name='Grok - Comp',mode='lines',line=dict(color='red')),row=1,col=2)
+    
+    # fig2.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_output_layer2.shape[0]),y=nongrok_fourier_output_layer2.detach().numpy()/np.max(nongrok_fourier_output_layer2.detach().numpy()),name='Learn - Fourier',mode='lines',line=dict(color='blue')),row=2,col=1)
+    # fig2.add_trace(go.Scatter(x=np.arange(0,grok_fourier_output_layer2.shape[0]),y=grok_fourier_output_layer2.detach().numpy()/np.max(grok_fourier_output_layer2.detach().numpy()),name='Grok - Fourier',mode='lines',line=dict(color='red')),row=2,col=2)
+    
+    fig2norm.add_trace(go.Scatter(x=np.arange(0,nongrok_comp_norms_layer2.shape[0]),y=nongrok_comp_norms_layer2.detach().numpy()/(max_non_grok_comp),name='Learn - Comp',mode='lines',line=dict(color='blue')),row=1,col=1)
+    fig2norm.add_trace(go.Scatter(x=np.arange(0,nongrok_fourier_norms_layer2.shape[0]),y=nongrok_fourier_norms_layer2.detach().numpy()/(max_non_grok_fourier),name='Learn - Fourier',mode='lines',line=dict(color='orange')),row=1,col=1)
+
+    fig2norm.add_trace(go.Scatter(x=np.arange(0,grok_comp_norms_layer2.shape[0]),y=grok_comp_norms_layer2.detach().numpy()/(max_grok_comp),name='Grok - Comp',mode='lines',line=dict(color='red')),row=1,col=2)
+    fig2norm.add_trace(go.Scatter(x=np.arange(0,grok_fourier_norms_layer2.shape[0]),y=grok_fourier_norms_layer2.detach().numpy()/(max_grok_fourier),name='Grok - Fourier',mode='lines',line=dict(color='black')),row=1,col=2)
+
+    fig2norm.update_layout(title_text='Layer 2 Fourier and Computational norms')
+    fig2norm.update_xaxes(title_text='Component',row=1)
+    #fig2.update_xaxes(title_text='Component - Fourier',row=2)
+    fig2norm.update_yaxes(title_text='Norm, normalized by max')
+    #fig2.update_yaxes(range=[0,1])
+
+
+    fig4=make_subplots(rows=2,cols=3,subplot_titles=['Computational basis PCA - Learn','Computational basis PCA - Grok','Computational basis singular values','Fourier basis PCA - Learn','Fourier basis PCA - Grok','Fourier basis singular values'])
     
     u_nongrok_comp,s_nongrok_comp,v_nongrok_comp=torch.svd(comp_output[0])
     nongrok_proj_matrix_comp=torch.matmul(comp_output[0], torch.tensor(v_nongrok_comp[:, :2]))
@@ -565,17 +694,42 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     u_grok_comp,s_grok_comp,v_grok_comp=torch.svd(comp_output[1])
     grok_proj_matrix_comp=torch.matmul(comp_output[0], torch.tensor(v_grok_comp[:, :2]))
 
-    u_nongrok_fourier,s_nongrok_fourier,v_nongrok_fourier=torch.svd(fourier_output[0])
-    nongrok_proj_matrix_fourier=torch.matmul(fourier_output[0], torch.tensor(v_nongrok_fourier[:, :2]))
+    u_nongrok_fourier_cos,s_nongrok_fourier_cos,v_nongrok_fourier_cos=torch.svd(nongrok_fmo_cos)
+    nongrok_proj_matrix_fourier_cos=torch.matmul(nongrok_fmo_cos, torch.tensor(v_nongrok_fourier_cos[:, :2]))
 
-    u_grok_fourier,s_grok_fourier,v_grok_fourier=torch.svd(fourier_output[1])
-    grok_proj_matrix_fourier=torch.matmul(fourier_output[1], torch.tensor(v_grok_fourier[:, :2]))
+    u_grok_fourier_cos,s_grok_fourier_cos,v_grok_fourier_cos=torch.svd(grok_fmo_cos)
+    grok_proj_matrix_fourier_cos=torch.matmul(grok_fmo_cos, torch.tensor(v_grok_fourier_cos[:, :2]))
+
+    u_nongrok_fourier_sin,s_nongrok_fourier_sin,v_nongrok_fourier_sin=torch.svd(nongrok_fmo_sin)
+    nongrok_proj_matrix_fourier_sin=torch.matmul(nongrok_fmo_sin, torch.tensor(v_nongrok_fourier_sin[:, :2]))
+
+    u_grok_fourier_sin,s_grok_fourier_sin,v_grok_fourier_sin=torch.svd(grok_fmo_sin)
+    grok_proj_matrix_fourier_sin=torch.matmul(grok_fmo_sin, torch.tensor(v_grok_fourier_sin[:, :2]))
+
 
     fig4.add_trace(go.Scatter(x=nongrok_proj_matrix_comp[:,0].detach().numpy(), y=nongrok_proj_matrix_comp[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=1, col=1)
     fig4.add_trace(go.Scatter(x=grok_proj_matrix_comp[:,0].detach().numpy(), y=grok_proj_matrix_comp[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='red'),showlegend=True), row=1, col=2)
 
-    fig4.add_trace(go.Scatter(x=nongrok_proj_matrix_fourier[:,0].detach().numpy(), y=nongrok_proj_matrix_fourier[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=2, col=1)
-    fig4.add_trace(go.Scatter(x=grok_proj_matrix_fourier[:,0].detach().numpy(), y=grok_proj_matrix_fourier[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=2, col=2)
+    fig4.add_trace(go.Scatter(x=nongrok_proj_matrix_fourier_cos[:,0].detach().numpy(), y=nongrok_proj_matrix_fourier_cos[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=2, col=1)
+    fig4.add_trace(go.Scatter(x=nongrok_proj_matrix_fourier_sin[:,0].detach().numpy(), y=nongrok_proj_matrix_fourier_sin[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=False), row=2, col=1)
+
+    fig4.add_trace(go.Scatter(x=grok_proj_matrix_fourier_cos[:,0].detach().numpy(), y=grok_proj_matrix_fourier_cos[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='red'),showlegend=True), row=2, col=2)
+    fig4.add_trace(go.Scatter(x=grok_proj_matrix_fourier_sin[:,0].detach().numpy(), y=grok_proj_matrix_fourier_sin[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='red'),showlegend=True), row=2, col=2)
+
+    fig4.add_trace(go.Scatter(x=np.arange(0,len(s_nongrok_comp)),y=s_nongrok_comp.detach().numpy(),name='Learn',mode='lines',line=dict(color='blue')),row=1,col=3)
+    fig4.add_trace(go.Scatter(x=np.arange(0,len(s_grok_comp)),y=s_grok_comp.detach().numpy(),name='Grok',mode='lines',line=dict(color='red')),row=1,col=3)
+
+    s_nongrok_fourier=torch.sort(torch.cat([s_nongrok_fourier_cos,s_nongrok_fourier_sin]),descending=True)[0]
+    s_grok_fourier=torch.sort(torch.cat([s_grok_fourier_cos,s_grok_fourier_sin]),descending=True)[0]
+
+    fig4.add_trace(go.Scatter(x=np.arange(0,len(s_nongrok_fourier)),y=s_nongrok_fourier.detach().numpy(),name='Learn',mode='lines',line=dict(color='blue')),row=2,col=3)
+    fig4.add_trace(go.Scatter(x=np.arange(0,len(s_grok_fourier)),y=s_grok_fourier.detach().numpy(),name='Grok',mode='lines',line=dict(color='red')),row=2,col=3)
+    
+    
+
+
+    fig4.update_yaxes(title_text='Singular value',col=3)
+    fig4.update_xaxes(title_text='Rank',col=3)
 
     fig4.update_layout(title_text='PCA of norms')
     fig4.update_xaxes(title_text='PCA 1 of norms - comp',row=1)
@@ -584,6 +738,69 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     fig4.update_xaxes(title_text='PCA 1 of norms - fourier',row=2)
     fig4.update_yaxes(title_text='PCA 2 of norms - fourier',row=2)
 
+
+    fig6=make_subplots(rows=2,cols=2,subplot_titles=['Computational basis PCA - Learn','Computational basis PCA - Grok','Fourier basis PCA - Learn','Fourier basis PCA - Grok'])
+    
+    u_nongrok_comp,s_nongrok_comp,v_nongrok_comp=torch.svd(comp_output[0])
+    nongrok_proj_matrix_comp=torch.matmul(comp_output[0], torch.tensor(v_nongrok_comp[:, :2]))
+
+    u_grok_comp,s_grok_comp,v_grok_comp=torch.svd(comp_output[1])
+    grok_proj_matrix_comp=torch.matmul(comp_output[0], torch.tensor(v_grok_comp[:, :2]))
+
+    u_nongrok_fourier,s_nongrok_fourier,v_nongrok_fourier=torch.svd(nongrok_fmo_sin)
+    nongrok_proj_matrix_fourier=torch.matmul(nongrok_fmo_sin, torch.tensor(v_nongrok_fourier[:, :2]))
+
+    u_grok_fourier,s_grok_fourier,v_grok_fourier=torch.svd(grok_fmo_sin)
+    grok_proj_matrix_fourier=torch.matmul(grok_fmo_sin, torch.tensor(v_grok_fourier[:, :2]))
+
+    fig6.add_trace(go.Scatter(x=nongrok_proj_matrix_comp[:,0].detach().numpy(), y=nongrok_proj_matrix_comp[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=1, col=1)
+    fig6.add_trace(go.Scatter(x=grok_proj_matrix_comp[:,0].detach().numpy(), y=grok_proj_matrix_comp[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='red'),showlegend=True), row=1, col=2)
+
+    fig6.add_trace(go.Scatter(x=nongrok_proj_matrix_fourier[:,0].detach().numpy(), y=nongrok_proj_matrix_fourier[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=2, col=1)
+    fig6.add_trace(go.Scatter(x=grok_proj_matrix_fourier[:,0].detach().numpy(), y=grok_proj_matrix_fourier[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='red'),showlegend=True), row=2, col=2)
+
+    fig6.update_layout(title_text='PCA of norms')
+    fig6.update_xaxes(title_text='PCA 1 of norms - comp',row=1)
+    fig6.update_yaxes(title_text='PCA 2 of norms - comp',row=1)
+
+    fig6.update_xaxes(title_text='PCA 1 of norms - fourier',row=2)
+    fig6.update_yaxes(title_text='PCA 2 of norms - fourier',row=2)
+
+
+
+    fig5=make_subplots(rows=3,cols=2,subplot_titles=['Computational basis PCA - Learn','Computational basis PCA - Grok','Fourier basis PCA - Learn','Fourier basis PCA - Grok'])
+    
+
+
+
+    u_nongrok_comp,s_nongrok_comp,v_nongrok_comp=torch.svd(nongrok_comp_output_layer2)
+    nongrok_proj_matrix_comp=torch.matmul(nongrok_comp_output_layer2, torch.tensor(v_nongrok_comp[:, :2]))
+
+    u_grok_comp,s_grok_comp,v_grok_comp=torch.svd(grok_comp_output_layer2)
+    grok_proj_matrix_comp=torch.matmul(grok_comp_output_layer2, torch.tensor(v_grok_comp[:, :2]))
+
+    u_nongrok_fourier,s_nongrok_fourier,v_nongrok_fourier=torch.svd(nongrok_fourier_output_layer2)
+    nongrok_proj_matrix_fourier=torch.matmul(nongrok_fourier_output_layer2, torch.tensor(v_nongrok_fourier[:, :2]))
+
+    u_grok_fourier,s_grok_fourier,v_grok_fourier=torch.svd(grok_fourier_output_layer2)
+    grok_proj_matrix_fourier=torch.matmul(grok_fourier_output_layer2, torch.tensor(v_grok_fourier[:, :2]))
+
+    fig5.add_trace(go.Scatter(x=nongrok_proj_matrix_comp[:,0].detach().numpy(), y=nongrok_proj_matrix_comp[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=1, col=1)
+    fig5.add_trace(go.Scatter(x=grok_proj_matrix_comp[:,0].detach().numpy(), y=grok_proj_matrix_comp[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='red'),showlegend=True), row=1, col=2)
+
+    fig5.add_trace(go.Scatter(x=nongrok_proj_matrix_fourier[:,0].detach().numpy(), y=nongrok_proj_matrix_fourier[:,1].detach().numpy(), name='Learn', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=2, col=1)
+    fig5.add_trace(go.Scatter(x=grok_proj_matrix_fourier[:,0].detach().numpy(), y=grok_proj_matrix_fourier[:,1].detach().numpy(), name='Grok', mode='markers',marker=dict(size=10,color='blue'),showlegend=True), row=2, col=2)
+
+
+    fig5.update_yaxes(title_text='Singular value',row=3)
+    fig5.update_xaxes(title_text='Rank',row=3)
+
+    fig5.update_layout(title_text='PCA of norms')
+    fig5.update_xaxes(title_text='PCA 1 of norms - comp',row=1)
+    fig5.update_yaxes(title_text='PCA 2 of norms - comp',row=1)
+
+    fig5.update_xaxes(title_text='PCA 1 of norms - fourier',row=2)
+    fig5.update_yaxes(title_text='PCA 2 of norms - fourier',row=2)
     
 
 
@@ -594,15 +811,20 @@ def matrix_heatmap(grokobject,nongrokobject=None):
     
 
     
-    return fig,fig1,fig2,fig4
+    return fig,fig1,fig11,fig2,fig2norm,fig4,fig5,fig6
 
-fig1,fig2,fig3,fig4=matrix_heatmap(grok_object,nongrok_object)
+fig,fig1,fig11,fig2,fig2norm,fig4,fig5,fig6=matrix_heatmap(grok_object,nongrok_object)
+#fig.show()#heatmap
 fig1.show()
+fig11.show()
 fig2.show()
-fig3.show()
+fig2norm.show()
 fig4.show()
+fig5.show()
+fig6.show()
 
-
+grok_object.cosine_sim(nongrok_object).show()
+grok_object.traincurves_and_iprs(nongrok_object).show()
 
 def norm_histogram_plot(grokobject,nongrokobject=None):
     objects=1
@@ -613,12 +835,12 @@ def norm_histogram_plot(grokobject,nongrokobject=None):
     # exit()
     if nongrok_object is not None:
         objects+=1
-        nongrok_comp_output,nongrok_fourier_output,a,b=comp_and_fourier_norms(nongrok_object)
+        nongrok_comp_output,nongrok_fourier_output,a,b,c,d=comp_and_fourier_norms(nongrok_object)
         comp_output.append(nongrok_comp_output)
         fourier_output.append(nongrok_fourier_output)
 
-    grok_comp_output,grok_fourier_output,a,b=comp_and_fourier_norms(grokobject)
-    print(torch.equal(grok_comp_output,nongrok_comp_output))
+    grok_comp_output,grok_fourier_output,a,b,c,d=comp_and_fourier_norms(grokobject)
+    
     
     comp_output.append(grok_comp_output)
     fourier_output.append(grok_fourier_output)
@@ -716,10 +938,10 @@ fig.show()
 
 
 
-exit()
+
 
 print(torch.equal(all_twop_inputs, all_twop_inputs_2))
-exit()
+
 #Ok! So the fourier transform setup is different. The correct thing is to split out the two-hot encoded vector and do a fourier transform on that.
 #The quicker thing is just to `roll it out` and do a Fourier transform on a vector of length 2P.
 
