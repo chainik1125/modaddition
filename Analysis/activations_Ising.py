@@ -2361,7 +2361,7 @@ def open_files_in_leaf_directories(root_dir):
                             single_run = torch.load(in_strm,map_location=device)
                                             # Do something with the content if needed
                             all_files.append(single_run)
-                    print(f'file opened')
+                    #print(f'file opened')
                 except Exception as e:
                     print(f"Failed to open {file_path}: {e}")
     return all_files
