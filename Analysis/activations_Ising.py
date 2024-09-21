@@ -2411,9 +2411,43 @@ def mod_add_fourier_activations_dict(runobject):
 
         return ks
     
+    def interleave_tensors(tensor1,tensor2):
+        # Example 1D tensors A and B
+
+
+        # Stack the tensors along a new dimension (N, 2)
+        N=tensor1.shape[0]
+        P=(tensor1.shape[1]+tensor2.shape[1])//2
+
+        tensor1_cut=torch.cat((tensor1[:,1:P//2],tensor2[:,P//2:]),dim=1)
+        tensor1_x_const=tensor1[:,0]
+        tensor1_y_const=tensor1[:,P//2]
+        print(f'tensor_x 1 {tensor1_x_const[:5]}')
+        print(f'tensor_y 1 {tensor1_y_const[:5]}')
+        
+        
+        print(f'tensor1_cut shape {tensor1_cut.shape}')
+        print(f'tensor2 shape {tensor2.shape}')
+        exit()
+        
+
+        # Reshape A and B to (N, P, 2) to separate alternating columns
+        tensor1_reshaped = tensor1_cut.view(N, P-1, 2)  # Shape (N, P, 2)
+        tensor2_reshaped = tensor2.view(N, P-1, 2)  # Shape (N, P, 2)
+
+        # Stack and interleave the last dimension of A and B
+        interleaved = torch.stack((tensor1_reshaped, tensor2_reshaped), dim=3)  # Shape (N, P, 2, 2)
+        interleaved_tensor = interleaved.view(N, 2 * (P-1))  # Reshape back to (N, 2P) interleaving A and B
+        
+        #interleaved_tensor=torch.cat((tensor1_cut,tensor1_cut,interleaved_tensor),dim=1)
+        print(f'interleaved_tensor shape {interleaved_tensor.shape}')
+        return interleaved_tensor
+
+    
     def make_fourier_basis(runobject):
         P=runobject.trainargs.P
         ks=make_ks(runobject)
+
         #1. Make a P^2x2 tensor of kx,ky values - i.e. just 2*pi/P (nx,ny) for nx,ny between 0 and P-1
 
         #2. Make a P^2x2P tensor of fourier transformed input vectors. By writing out the fourier transfrom 
@@ -2425,19 +2459,64 @@ def mod_add_fourier_activations_dict(runobject):
         # half of the two-hot being e^{ikx} it'll be p/2 cos(kx)'s, interleaved with p/s sin(kx)'s. I guess this is what
         #the supreme toad did.        
 
-        fourier_cos=torch.zeros(P*P,2*P)
-        fourier_sin=torch.zeros(P*P,2*P)
+        # fourier_cos=torch.zeros(P*P,2*P)
+        # fourier_sin=torch.zeros(P*P,2*P)
 
-        # Create a range tensor of shape (P,)
-        arange_tensor = torch.arange(P)
+        # # Create a range tensor of shape (P,)
+        # arange_tensor = torch.arange(P)
 
-        # Expand arange_tensor to shape (P^2, P) for broadcasting
-        arange_expanded = arange_tensor.unsqueeze(0).expand(P * P, P)
-        fourier_cos[:, :P] = torch.cos(ks[:, 0:1] * arange_expanded)
-        fourier_cos[:, P:] = torch.cos(ks[:, 1:2] * arange_expanded)
+        # # Expand arange_tensor to shape (P^2, P) for broadcasting
+        # # arange_expanded = arange_tensor.unsqueeze(0).expand(P * P, P)
+        # # fourier_cos[:, :P] = torch.cos(ks[:, 0:1] * arange_expanded)
+        # # fourier_cos[:, P:] = torch.cos(ks[:, 1:2] * arange_expanded)
         
-        fourier_sin[:, :P] = torch.sin(ks[:, 0:1] * arange_expanded)
-        fourier_sin[:, P:] = torch.sin(ks[:, 1:2] * arange_expanded)
+        # # fourier_sin[:, :P] = torch.sin(ks[:, 0:1] * arange_expanded)
+        # # fourier_sin[:, P:] = torch.sin(ks[:, 1:2] * arange_expanded)
+
+        fourier_half_cos_1=torch.zeros(P*P,(P+1)//2)#You add the constant term seperately
+        fourier_half_cos_2=torch.zeros(P*P,(P+1)//2)
+
+        fourier_half_sin_1=torch.zeros(P*P,(P-1)//2)
+        fourier_half_sin_2=torch.zeros(P*P,(P-1)//2)
+
+
+        arange_tensor_half_cos = torch.arange(1,1+P//2+1)
+        arange_tensor_half_sin = torch.arange(1,P//2+1)
+        
+
+        arange_expanded_half_cos = arange_tensor_half_cos.unsqueeze(0).expand(P * P, -1)
+        arange_expanded_half_sin = arange_tensor_half_sin.unsqueeze(0).expand(P * P, -1)
+
+        # fourier_half_cos[:, :(P+1)//2] = torch.cos(ks[:, 0:1] * arange_expanded_half_cos)
+        # fourier_half_sin[:, :(P-1)//2] = torch.sin(ks[:, 0:1] * arange_expanded_half_sin)
+
+        # fourier_half_cos[:, (P+1)//2:] = torch.cos(ks[:, 1:2] * arange_expanded_half_cos)
+        # fourier_half_sin[:, (P-1)//2:] = torch.sin(ks[:, 1:2] * arange_expanded_half_sin)
+
+        # Compute the cosine and sine terms
+        fourier_half_cos_1[:, :] = torch.cos(ks[:, 0:1] * arange_expanded_half_cos)
+        fourier_half_sin_1[:, :] = torch.sin(ks[:, 0:1] * arange_expanded_half_sin)
+
+        # For cosine and sine with ks[:, 1:2], the expanded arange tensors are reused.
+        # Only the values are updated based on the second column of ks.
+        fourier_half_cos_2[:, :] = torch.cos(ks[:, 1:2] * arange_expanded_half_cos)
+        fourier_half_sin_2[:, :] = torch.sin(ks[:, 1:2] * arange_expanded_half_sin)
+
+        fourier_half_cos=torch.cat((fourier_half_cos_1,fourier_half_cos_2),dim=1)
+        fourier_half_sin=torch.cat((fourier_half_sin_1,fourier_half_sin_2),dim=1)
+
+        
+        
+        fourier_combined=interleave_tensors(fourier_half_cos,fourier_half_sin)
+
+        print(fourier_combined.shape)
+        exit()
+        
+
+
+
+
+
         
     
         return fourier_cos,fourier_sin
