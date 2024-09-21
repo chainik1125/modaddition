@@ -280,6 +280,49 @@ def manual_config_CNN(run_object):
 
 
 
+# def get_activations(model, x):
+#     activations = {}
+#     hooks = []
+
+#     def save_activation(name):
+#         """Hook function that saves the output of the layer to the activations dict."""
+#         def hook(model, input, output):
+#             activations[name] = output.detach()
+#         return hook
+
+#     def register_hooks():
+#         """Registers hooks on specified layer types across the entire model."""
+#         for name, module in model.named_modules():
+#             # Check specifically for the layer types or names you are interested in
+#             if isinstance(module, (nn.Conv2d, nn.Linear,nn.MaxPool2d)):
+#                 # Adjust name to include full path for clarity, especially useful for layers within ModuleList
+#                 full_name = f'{name} ({module.__class__.__name__})'
+#                 print(f'Registering hook on {full_name}')
+#                 hook = module.register_forward_hook(save_activation(full_name))
+#                 hooks.append(hook)
+#             #Have to manually add the hook for pooling layer 5
+#         # full_name = f'conv_layers.2 ({model.conv_layers[2].__class__.__name__})'
+#         # hook=model.conv_layers[2].register_forward_hook(save_activation(full_name))
+#         # full_name = f'conv_layers.5 ({model.conv_layers[5].__class__.__name__})'
+#         # hook=model.conv_layers[5].register_forward_hook(save_activation(full_name))
+
+#         #     # Explicitly check if this is the layer you are particularly interested in
+#         # if name == "conv_layers.5":
+#         #     print(f"Special hook registered on {full_name}")
+
+#     def remove_hooks():
+#         """Removes all hooks from the model."""
+#         for hook in hooks:
+#             hook.remove()
+#         print('All hooks removed.')
+
+#     register_hooks()
+#     # Forward pass to get outputs
+#     output = model(x)
+
+#     return activations, output, remove_hooks
+
+
 def get_activations(model, x):
     activations = {}
     hooks = []
@@ -294,21 +337,12 @@ def get_activations(model, x):
         """Registers hooks on specified layer types across the entire model."""
         for name, module in model.named_modules():
             # Check specifically for the layer types or names you are interested in
-            if isinstance(module, (nn.Conv2d, nn.Linear,nn.MaxPool2d)):
+            if isinstance(module, (nn.Conv2d, nn.Linear, nn.MaxPool2d, nn.ReLU)):
                 # Adjust name to include full path for clarity, especially useful for layers within ModuleList
                 full_name = f'{name} ({module.__class__.__name__})'
                 print(f'Registering hook on {full_name}')
                 hook = module.register_forward_hook(save_activation(full_name))
                 hooks.append(hook)
-            #Have to manually add the hook for pooling layer 5
-        # full_name = f'conv_layers.2 ({model.conv_layers[2].__class__.__name__})'
-        # hook=model.conv_layers[2].register_forward_hook(save_activation(full_name))
-        # full_name = f'conv_layers.5 ({model.conv_layers[5].__class__.__name__})'
-        # hook=model.conv_layers[5].register_forward_hook(save_activation(full_name))
-
-        #     # Explicitly check if this is the layer you are particularly interested in
-        # if name == "conv_layers.5":
-        #     print(f"Special hook registered on {full_name}")
 
     def remove_hooks():
         """Removes all hooks from the model."""
@@ -319,8 +353,9 @@ def get_activations(model, x):
     register_hooks()
     # Forward pass to get outputs
     output = model(x)
+    remove_hooks()  # Ensure hooks are removed after forward pass
 
-    return activations, output, remove_hooks
+    return activations, output
 
 
 
@@ -2366,6 +2401,370 @@ def open_files_in_leaf_directories(root_dir):
                     print(f"Failed to open {file_path}: {e}")
     return all_files
 
+
+def mod_add_fourier_activations_dict(runobject):
+    def make_ks(runobject):
+        P=runobject.trainargs.P
+        #1. Make a P^2x2 tensor of kx,ky values - i.e. just 2*pi/P (nx,ny) for nx,ny between 0 and P-1
+        kxs=2*torch.pi*torch.arange(P)/P
+        ks=torch.cartesian_prod(torch.tensor(kxs),torch.tensor(kxs))
+
+        return ks
+    
+    def make_fourier_basis(runobject):
+        P=runobject.trainargs.P
+        ks=make_ks(runobject)
+        #1. Make a P^2x2 tensor of kx,ky values - i.e. just 2*pi/P (nx,ny) for nx,ny between 0 and P-1
+
+        #2. Make a P^2x2P tensor of fourier transformed input vectors. By writing out the fourier transfrom 
+        ####of the (X,Y) vector explicitly you can see that it's just the fourier of x in x and the fourier of y
+        ####in y. (pg 460-462 project notes in Remarkable). 
+        ### Note that here the entries are complex. So I think the thing to do is to symmetrize to real frequencies
+        ### by considering e^{ikx}+e^{-ikx} and e^{ikx}-e^{-ikx} as the components of the fourier transform. This just amounts
+        #to using a different fourier basis. I think practically this will mean that instead of the each one-hot
+        # half of the two-hot being e^{ikx} it'll be p/2 cos(kx)'s, interleaved with p/s sin(kx)'s. I guess this is what
+        #the supreme toad did.        
+
+        fourier_cos=torch.zeros(P*P,2*P)
+        fourier_sin=torch.zeros(P*P,2*P)
+
+        # Create a range tensor of shape (P,)
+        arange_tensor = torch.arange(P)
+
+        # Expand arange_tensor to shape (P^2, P) for broadcasting
+        arange_expanded = arange_tensor.unsqueeze(0).expand(P * P, P)
+        fourier_cos[:, :P] = torch.cos(ks[:, 0:1] * arange_expanded)
+        fourier_cos[:, P:] = torch.cos(ks[:, 1:2] * arange_expanded)
+        
+        fourier_sin[:, :P] = torch.sin(ks[:, 0:1] * arange_expanded)
+        fourier_sin[:, P:] = torch.sin(ks[:, 1:2] * arange_expanded)
+        
+    
+        return fourier_cos,fourier_sin
+    
+    def make_comp_basis(runobject):
+        P=runobject.trainargs.P
+        ks=make_ks(runobject)
+
+        comp_basis=torch.zeros(P*P,2*P)
+        comp_indices=ks/(2*torch.pi/P)
+        comp_indices_int=comp_indices.int()
+        comp_indices_int[:,1]=comp_indices_int[:,1]+P
+
+        #row_indices = torch.arange(comp_indices_int.shape[1])
+        #col_indices=comp_indices_int[range(P*P),row_indices]
+        #comp_basis[row_indices,col_indices]=1
+
+        
+        comp_basis[torch.arange(P*P), comp_indices_int[torch.arange(P*P),0]] = 1
+        comp_basis[torch.arange(P*P), comp_indices_int[torch.arange(P*P),1]] = 1
+        
+        return comp_basis
+    
+    test_model=load_model(runobject,runobject.model_epochs()[-1])[0]
+    test_model.eval()
+    fourier_cos,fourier_sin=make_fourier_basis(runobject)
+    comp_basis=make_comp_basis(runobject)
+    #Note that the hook applies after the layer is done. So it gives the activations at the end of the layer. 
+    #Note also that to get the activations after ReLU you need to add ReLU to the list.
+    with torch.no_grad():
+        test_acts_cos_f,output_cos_f=get_activations(test_model,fourier_cos)#Note the output is already registered as the hook on the last layer
+        test_acts_sin_f,output_sin_f=get_activations(test_model,fourier_sin)
+        test_acts_c,output_c=get_activations(test_model,comp_basis)
+
+    return test_acts_cos_f,test_acts_sin_f,test_acts_c
+
+def modadd_activations_heatmap(grokfolder,nongrokfolder,layer='model.1 (ReLU)',eps=1e-8):
+    
+    def extract_final_series_heatmap(runobject,layer='model.1 (ReLU)',eps=1e-8):
+        P=runobject.trainargs.P
+        cos_f_acts,sin_f_acts,comp_acts=mod_add_fourier_activations_dict(runobject)
+        
+        cos_f_layer=cos_f_acts[layer]
+        sin_f_layer=sin_f_acts[layer]
+        comp_layer=comp_acts[layer]
+
+        cos_f_layer=cos_f_layer.reshape(P,P,cos_f_layer.shape[-1])
+        sin_f_layer=sin_f_layer.reshape(P,P,sin_f_layer.shape[-1])
+        comp_layer=comp_layer.reshape(P,P,comp_layer.shape[-1])
+
+        max_mean_cos=torch.max(cos_f_layer,dim=-1).values/(cos_f_layer.mean(dim=-1)+eps)
+        max_mean_sin=torch.max(sin_f_layer,dim=-1).values/(sin_f_layer.mean(dim=-1)+eps)
+        max_mean_comp=torch.max(comp_layer,dim=-1).values/(comp_layer.mean(dim=-1)+eps)
+
+        normed_max_mean_cos=max_mean_cos/torch.mean(max_mean_cos)
+        normed_max_mean_sin=max_mean_sin/torch.mean(max_mean_sin)
+        normed_max_mean_comp=max_mean_comp/torch.mean(max_mean_comp)
+
+        return normed_max_mean_cos,normed_max_mean_sin,normed_max_mean_comp
+
+    def average_final_series(grokfolder,nongrokfolder):
+        grokruns=open_files_in_leaf_directories(grokfolder)
+        nongrokruns=open_files_in_leaf_directories(nongrokfolder)
+
+        grok_cos_means=[]
+        grok_sin_means=[]
+        comp_means=[]
+
+        for grokrun in grokruns:
+            cos,sin,comp=extract_final_series_heatmap(grokrun)
+            grok_cos_means.append(cos)
+            grok_sin_means.append(sin)
+            comp_means.append(comp)
+        
+        grok_mean_series_cos=torch.stack(grok_cos_means,dim=0).mean(dim=0)
+        grok_mean_series_sin=torch.stack(grok_sin_means,dim=0).mean(dim=0)
+        grok_mean_series_comp=torch.stack(comp_means,dim=0).mean(dim=0)
+
+        nongrok_cos_means=[]
+        nongrok_sin_means=[]
+        nongrok_comp_means=[]
+
+        for nongrokrun in nongrokruns:
+            cos,sin,comp=extract_final_series_heatmap(nongrokrun)
+            nongrok_cos_means.append(cos)
+            nongrok_sin_means.append(sin)
+            nongrok_comp_means.append(comp)
+        
+        nongrok_mean_series_cos=torch.stack(nongrok_cos_means,dim=0).mean(dim=0)
+        nongrok_mean_series_sin=torch.stack(nongrok_sin_means,dim=0).mean(dim=0)
+        nongrok_mean_series_comp=torch.stack(nongrok_comp_means,dim=0).mean(dim=0)
+
+        return (grok_mean_series_cos,grok_mean_series_sin,grok_mean_series_comp),(nongrok_mean_series_cos,nongrok_mean_series_sin,nongrok_mean_series_comp)
+
+    grok_means,nongrok_means=average_final_series(grokfolder,nongrokfolder)
+
+    fig=make_subplots(rows=len(grok_means),cols=2,
+    subplot_titles=[r'$\text{Computational basis - Learn}$',r'$\text{Computational basis - Grok}$',
+        r'$\text{Cosine Fourier - Learn}$',r'$\text{Cosine Fourier - Grok}$',
+    r'$\text{Sine Fourier - Learn}$',r'$\text{Sine Fourier - Grok}$'])
+
+    max_cos=torch.max(torch.max(grok_means[0]),torch.max(nongrok_means[0])).item()
+    max_sin=torch.max(torch.max(grok_means[1]),torch.max(nongrok_means[1])).item()
+    max_comp=torch.max(torch.max(grok_means[2]),torch.max(nongrok_means[2])).item()
+
+    min_cos=torch.min(torch.min(grok_means[0]),torch.min(nongrok_means[0])).item()
+    min_sin=torch.min(torch.min(grok_means[1]),torch.min(nongrok_means[1])).item()
+    min_comp=torch.min(torch.min(grok_means[2]),torch.min(nongrok_means[2])).item()
+
+
+
+    fig.add_trace(go.Heatmap(z=nongrok_means[2].detach().numpy(),zmax=max_comp,zmin=min_comp,colorscale='Viridis'),row=1,col=1)
+    fig.add_trace(go.Heatmap(z=grok_means[2].detach().numpy(),zmax=max_comp,zmin=min_comp,colorscale='Viridis'),row=1,col=2)
+
+    fig.add_trace(go.Heatmap(z=nongrok_means[0].detach().numpy(),zmax=max_cos,zmin=min_cos,colorscale='Viridis'),row=2,col=1)
+    fig.add_trace(go.Heatmap(z=grok_means[0].detach().numpy(),zmax=max_cos,zmin=min_cos,colorscale='Viridis'),row=2,col=2)
+
+    fig.add_trace(go.Heatmap(z=nongrok_means[1].detach().numpy(),zmax=max_sin,zmin=min_sin,colorscale='Viridis'),row=3,col=1)
+    fig.add_trace(go.Heatmap(z=grok_means[1].detach().numpy(),zmax=max_sin,zmin=min_sin,colorscale='Viridis'),row=3,col=2)
+
+    return fig
+
+def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',threshold=1e-1,times_range=1e-2):
+        
+    def remove_nans(tensor):
+        # Create a boolean mask for non-NaN values
+        mask = ~torch.isnan(tensor)
+        
+        # Use the mask to select only non-NaN values
+        return tensor[mask]
+    
+    
+    def count_within_std(tensor, threshold=threshold,times_range=1e-1):
+        # Assuming tensor shape is (P, P, d)
+        P, _, d = tensor.shape
+        
+        # Find max and std for each PxP slice
+        max_values, _ = torch.max(tensor.reshape(-1, d), dim=0)
+        #std_values = torch.std(tensor.reshape(-1, d), dim=0)
+        std_values=times_range*(max_values-torch.min(tensor.reshape(-1,d),dim=0).values)
+        
+        # Create a mask for values within one std of max
+        mask = (tensor >= (max_values - std_values)) & (tensor <= (max_values + std_values))
+        
+        # # Count True values in each slice
+        # counts = torch.sum(mask, dim=(0, 1))
+        
+        # # Set count to zero where max doesn't exceed the threshold
+        # counts = torch.where(max_values > threshold, counts, torch.zeros_like(counts))
+
+            # Count True values in each slice
+        counts = torch.sum(mask, dim=(0, 1)).float()  # Convert to float
+        
+        # Set count to NaN where max doesn't exceed the threshold
+        counts = torch.where(max_values > threshold, counts, torch.full_like(counts, float('nan')))
+        
+        
+        #Want to do this later so that the frequencies are together when they get naned out when I combine the sin and cos
+        #counts=remove_nans(counts)
+        
+        return counts
+    
+    def extract_final_series_weights(runobject):
+        P=runobject.trainargs.P
+        cos_f_acts,sin_f_acts,comp_acts=mod_add_fourier_activations_dict(runobject)
+        
+        cos_f_layer=cos_f_acts[layer]
+        sin_f_layer=sin_f_acts[layer]
+        comp_layer=comp_acts[layer]
+
+        cos_f_layer=cos_f_layer.reshape(P,P,cos_f_layer.shape[-1])
+        sin_f_layer=sin_f_layer.reshape(P,P,sin_f_layer.shape[-1])
+        comp_layer=comp_layer.reshape(P,P,comp_layer.shape[-1])
+
+        cos_f_counts=count_within_std(cos_f_layer,threshold=threshold)
+        sin_f_counts=count_within_std(sin_f_layer,threshold=threshold)
+        comp_counts=count_within_std(comp_layer,threshold=threshold)
+
+
+
+        cos_f_max_neuron=torch.max(cos_f_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
+        cos_f_max_acts=cos_f_layer[:,:,cos_f_max_neuron]
+
+        sin_f_max_neuron=torch.max(sin_f_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
+        sin_f_max_acts=sin_f_layer[:,:,sin_f_max_neuron]
+
+        comp_max_neuron=torch.max(comp_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
+        comp_max_acts=comp_layer[:,:,comp_max_neuron]
+
+
+        return (cos_f_counts,sin_f_counts,comp_counts),(cos_f_max_acts,sin_f_max_acts,comp_max_acts)
+    
+    def average_final_series_weights(grokfolder,nongrokfolder):
+        grokruns=open_files_in_leaf_directories(grokfolder)
+        nongrokruns=open_files_in_leaf_directories(nongrokfolder)
+
+        
+        def collect_results(runfolder):
+            cos_counts=[]
+            sin_counts=[]
+            comp_counts=[]
+
+            cos_maxes=[]
+            sin_maxes=[]
+            comp_maxes=[]
+
+
+            for run in runfolder:
+                counts,max_acts=extract_final_series_weights(run)
+                cos_counts.append(counts[0])
+                sin_counts.append(counts[1])
+                comp_counts.append(counts[2])
+
+                cos_maxes.append(max_acts[0])
+                sin_maxes.append(max_acts[1])
+                comp_maxes.append(max_acts[2])
+            
+            mean_series_cos=torch.stack(cos_counts,dim=0).mean(dim=0)
+            mean_series_sin=torch.stack(sin_counts,dim=0).mean(dim=0)
+            mean_series_comp=torch.stack(comp_counts,dim=0).mean(dim=0)
+            
+            max_series_cos=torch.stack(cos_maxes,dim=0).mean(dim=0)
+            max_series_sin=torch.stack(sin_maxes,dim=0).mean(dim=0)
+            max_series_comp=torch.stack(comp_maxes,dim=0).mean(dim=0)
+
+
+            return (mean_series_cos,mean_series_sin,mean_series_comp),(max_series_cos,max_series_sin,max_series_comp)
+        
+
+        grok_means,grok_maxes=collect_results(grokruns)
+        nongrok_means,nongrok_maxes=collect_results(nongrokruns)
+    
+        return grok_means,grok_maxes,nongrok_means,nongrok_maxes
+
+    
+    grok_counts,grok_maxes,nongrok_counts,nongrok_maxes=average_final_series_weights(grokfolder,nongrokfolder)
+
+
+    print(f'grok maxes shape {grok_maxes[0].shape}')
+    grok_maxes_remove_freq_cos=(grok_maxes[0][:grok_maxes[0].shape[0]//2,:grok_maxes[0].shape[0]//2])
+    print(f'grok maxes remove freq shape {grok_maxes_remove_freq_cos.shape}')
+
+    
+
+    grok_maxes_remove_freq_cos=(grok_maxes[0][:grok_maxes[0].shape[0]//2,:grok_maxes[0].shape[0]//2])
+    grok_maxes_remove_freq_sin=(grok_maxes[1][:grok_maxes[1].shape[0]//2,:grok_maxes[1].shape[0]//2])
+    grok_combined_maxes_cos_sin = torch.stack((grok_maxes_remove_freq_cos.flatten(), grok_maxes_remove_freq_sin.flatten()), dim=1)  # Shape (N, 2)
+    grok_combined_maxes_cos_sin = grok_combined_maxes_cos_sin.view(-1)
+    print(f'grok combined maxes shape {grok_combined_maxes_cos_sin.shape}')
+    
+    grok_comp_maxes=grok_maxes[2].flatten()
+
+    grok_combined_cos_sin_counts=(grok_counts[0]+grok_counts[1])/2
+
+    grok_combined_cos_sin_counts=remove_nans(grok_combined_cos_sin_counts)
+    grok_comp_counts=remove_nans(grok_counts[2])    
+
+
+    
+    nongrok_maxes_remove_freq_cos=(nongrok_maxes[0][:nongrok_maxes[0].shape[0]//2,:nongrok_maxes[0].shape[0]//2])
+    nongrok_maxes_remove_freq_sin=(nongrok_maxes[1][:nongrok_maxes[1].shape[0]//2,:nongrok_maxes[1].shape[0]//2])
+    nongrok_combined_maxes_cos_sin = torch.stack((nongrok_maxes_remove_freq_cos[0].flatten(), nongrok_maxes_remove_freq_sin[1].flatten()), dim=1)  # Shape (N, 2)
+    nongrok_combined_maxes_cos_sin = nongrok_combined_maxes_cos_sin.view(-1)
+    nongrok_comp_maxes=nongrok_maxes[2].flatten()
+
+    nongrok_combined_cos_sin_counts=(nongrok_counts[0]+nongrok_counts[1])/2
+    nongrok_combined_cos_sin_counts=remove_nans(nongrok_combined_cos_sin_counts)
+    nongrok_comp_counts=remove_nans(nongrok_counts[2])
+
+
+
+
+
+    fig=make_subplots(rows=2,cols=3,
+    subplot_titles=['Single neuron - fourier','Single neuron - computational',
+    'Significant inputs - fourier','Significant inputs - computational',
+    'Significant inputs - fourier and computational','Significant inputs - fourier and computational'],
+    horizontal_spacing=0.08)
+
+    fourier_single_max = max(grok_combined_maxes_cos_sin.max().item(), nongrok_combined_maxes_cos_sin.max().item())
+    comp_single_max = max(grok_comp_maxes.max().item(), nongrok_comp_maxes.max().item())
+    
+
+    fig.add_trace(go.Scatter(x=np.arange(grok_combined_maxes_cos_sin.shape[0]),y=grok_combined_maxes_cos_sin.detach().numpy(),name='Grok fourier',line=dict(color='red'),showlegend=True),row=1,col=1)
+    fig.add_trace(go.Scatter(x=np.arange(grok_comp_maxes.shape[0]),y=grok_comp_maxes.detach().numpy(),name='Grok computational',line=dict(color='black'),showlegend=True),row=1,col=2)
+
+    fig.update_yaxes(title_text='Activation',range=[0,fourier_single_max],col=1)
+    fig.update_yaxes(title_text='Activation',range=[0,comp_single_max],col=2)
+    fig.update_xaxes(title_text='Frequency index',col=1)
+    fig.update_xaxes(title_text='Frequency index',col=2)
+
+    counts_max = max(grok_combined_cos_sin_counts.max().item(),grok_comp_counts.max().item(), nongrok_combined_cos_sin_counts.max().item(),nongrok_comp_counts.max().item())
+    
+
+    fig.add_trace(go.Scatter(x=np.arange(grok_combined_cos_sin_counts.shape[0]),y=grok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - grok',line=dict(color='red'),showlegend=False),row=1,col=3)
+    fig.add_trace(go.Scatter(x=np.arange(grok_comp_counts.shape[0]),y=grok_comp_counts.detach().numpy(),name='Significant computational basis activations - grok',line=dict(color='black'),showlegend=False),row=1,col=3)
+    
+    fig.update_yaxes(title_text='Number of frequencies',range=[0,counts_max],col=3)
+    #fig.update_yaxes(title_text='Number of inputs',range=[0,counts_max],col=4)
+    fig.update_xaxes(title_text='Neuron index',col=3)
+    
+
+
+
+    fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_maxes_cos_sin.shape[0]),y=nongrok_combined_maxes_cos_sin.detach().numpy(),name='Learn - fourier',line=dict(color='blue'),showlegend=True),row=2,col=1)
+    fig.add_trace(go.Scatter(x=np.arange(nongrok_comp_maxes.shape[0]),y=nongrok_comp_maxes.detach().numpy(),name='Learn - computational',line=dict(color='orange'),showlegend=True),row=2,col=2)
+    fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_cos_sin_counts.shape[0]),y=nongrok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - learn',line=dict(color='blue'),showlegend=False),row=2,col=3)
+    fig.add_trace(go.Scatter(x=np.arange(nongrok_counts[2].shape[0]),y=nongrok_comp_counts.detach().numpy(),name='Significant computational basis activations - learn',line=dict(color='orange'),showlegend=False),row=2,col=3)    
+
+
+    fig.update_layout(title_text=f'Grokking and learning paths both process in the fourier basis')
+
+    # fig.update_layout(
+    #     yaxis=dict(title='Frequencies', showticklabels=True),
+    #     yaxis2=dict(title='Frequencies', showticklabels=True),
+    #     xaxis=dict(title='Index'),
+    #     xaxis2=dict(title='Index'),
+    #     # height=500,
+    #     # width=900,
+    #     showlegend=True
+    # )
+
+    # Update y-axes to ensure they have the same range
+
+    
+    return fig
+
 if __name__== "__main__":
 
 
@@ -2627,8 +3026,8 @@ if __name__== "__main__":
     
 
     
-    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/test/modaddwd_3e-4/hiddenlayer_[512]_desc_modadd_wm_0.5"
-    nogrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/test/modaddwd_3e-4/hiddenlayer_[512]_desc_modadd_wm_10.0"
+    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/linear/hiddenlayer_[512]_desc_modadd_wm_15.0"#"/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/test/modaddwd_3e-4/hiddenlayer_[512]_desc_modadd_wm_0.5"
+    nogrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/linear/hiddenlayer_[512]_desc_modadd_wm_0.1"#"/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_0.5"#"/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/test/modaddwd_3e-4/hiddenlayer_[512]_desc_modadd_wm_10.0"
     all_run_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/test/added_folders"
     #"/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest"
 
@@ -3506,16 +3905,20 @@ if __name__== "__main__":
     # combine_dictionaries(dicpaths)
     # exit()
     #wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_combined_mnist_7-8-2024, 10:18.pickle"
-    wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_mod_combined_1-8-2024_min_43.pickle"
-    plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
-    plot_loss.show()
-    plot_acc.show()
-    exit()
+    # wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_mod_combined_1-8-2024_min_43.pickle"
+    # plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
+    # plot_loss.show()
+    # plot_acc.show()
+    # exit()
     # print(f'keys')
     
     #single_run.traincurves_and_iprs(single_run_ng).show()
     
     #magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
+    
+    #modadd_activations_heatmap(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
+    mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
+    
     exit()
 
 
