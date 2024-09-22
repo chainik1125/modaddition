@@ -3915,6 +3915,29 @@ if __name__== "__main__":
         else:
             return (pruning_percents,accs_losses_alllayers)
     
+    def magnitude_prune_ising_curves(run_object,pruning_percents,layers_pruned,epoch,by_layer=True):
+        def find_closest(lst, value):
+            return min(lst, key=lambda x: abs(x - value))
+
+        epoch=find_closest(run_object.model_epochs(),epoch)
+        
+        original_model, original_model_dic=load_model(run_object,epoch)
+        original_weights = save_original_weights(original_model, layers_pruned)
+        
+
+        original_model, original_model_dic=load_model(run_object,epoch)
+
+        #accuracies and losses for all layers
+        accs_losses_alllayers=iterative_prune_from_original(original_model, original_weights, layers_pruned, pruning_percents,'all_layers')
+        #reset model
+        original_model, original_model_dic=load_model(run_object,epoch)
+        #accuracies and losses for individual layers
+        if by_layer:
+            accs_losses_bylayer=[iterative_prune_from_original(original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+            return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+        else:
+            return (pruning_percents,accs_losses_alllayers)
+    
     #percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch=epoch)
     #percents,grok_avgs,non_grok_avgs=magnitude_prune_prod_mod_avg2(run_object=grok_foldername_seedaverage,pruning_percents=np.linspace(0,1,5),layers_pruned=['model.0','model.2'],epoch=epoch)
     
@@ -4018,12 +4041,6 @@ if __name__== "__main__":
             saved_dict[key][i+1]=np.array(saved_dict[key][i+1])
         
         #can simply seed average by averaging over the 0th dimension
-        #then can order in terms of weight multiplier, and plot out the pruning curves.
-
-        # for key in saved_dict.keys():
-        #     saved_dict[key][0]=np.mean(saved_dict[key][0],axis=0)
-        #     saved_dict[key][1]=np.mean(saved_dict[key][1],axis=0)
-        #     saved_dict[key][2]=np.mean(saved_dict[key][2],axis=0)
         
         import datetime
         wd_cons='3e-5'
@@ -4040,7 +4057,7 @@ if __name__== "__main__":
         return saved_dict
     
     #sample_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/modadd_all_wd/modaddwd_3e-5"
-    #test=save_pruning_curves_modadd(sample_folder,epoch='last',pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'])
+    #save_modadd_prune_dic=save_pruning_curves_modadd(sample_folder,epoch='last',pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'])
     sample_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_curves_modadd_wd_3e-5_22-9-2024, 13:38.dill"
     
 
@@ -4059,15 +4076,54 @@ if __name__== "__main__":
         for key in raw_data_dict.keys():
             weight_decay_dicts[key[1]][key[0]]=raw_data_dict[key]
         
+        
         #Really should only plot one weight decay but I guess I can plot them on neighbouring graphs
         data_dic=dict(sorted(next(iter(weight_decay_dicts.values())).items()))
-        
-        
-        # print(f'weight decay dict keys {weight_decay_dicts.keys()}')
-        # print(f'first weight decay dict dict keys {next(iter(weight_decay_dicts.values())).keys()}')
+
+        def learn_grok_plot(grok_split_wm=2):
+            fig=make_subplots(rows=2,cols=2,subplot_titles=['Learn pruning - accuracy','Grok pruning - accuracy', 'Learn pruning - loss','Grok pruning - loss'])
+            
+            def set_color_scale(num_grok_lines,num_learn_lines):
+                learn_colorscale=['rgb(0, 0, 255)' ,#Blue
+                                    'rgb(153, 153, 255)',#light blue
+                                    'rgb(204, 204,255 )']#Very pale blue
+                grok_colorscale=['rgb(204, 204, 255)',
+                                    'rgb(255, 153, 153)',
+                                    'rgb(255, 0, 0)']
+                
+                grok_colors=pc.sample_colorscale(grok_colorscale, num_grok_lines)
+                learn_colors=pc.sample_colorscale(learn_colorscale, num_learn_lines)
+
+                return grok_colors,learn_colors
+
+            num_grok_lines=len([k for k in data_dic.keys() if k>grok_split_wm])
+            num_learn_lines=len([k for k in data_dic.keys() if k<=grok_split_wm])
+
+            grok_colors,learn_colors=set_color_scale(num_grok_lines,num_learn_lines)
+            
+            grok_count=0
+            learn_count=0
+            for wm_key in data_dic.keys():
+                pruning_percents=data_dic[wm_key][0]
+                acc_pruning=data_dic[wm_key][1]
+                loss_pruning=data_dic[wm_key][2]
+                if wm_key>grok_split_wm:
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_pruning,mode='lines',line=dict(color=grok_colors[grok_count], width=2), name=f'wm {wm_key}',showlegend=True),row=1,col=1)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=loss_pruning,mode='lines',line=dict(color=grok_colors[grok_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=1)
+                    grok_count+=1
+                else:
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_pruning,mode='lines',line=dict(color=learn_colors[learn_count], width=2), name=f'wm {wm_key}',showlegend=True),row=1,col=2)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=loss_pruning,mode='lines',line=dict(color=learn_colors[learn_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=2)
+                    learn_count+=1
+                
+            fig.update_xaxes(title_text='Share of weights pruned ',range=[0.5,1])
+            fig.update_yaxes(title_text='Accuracy',row=1)
+            fig.update_yaxes(title_text='Loss',row=2)
+            fig.update_layout(title_text=f"Pruning advantage for modular addition in learning but not in grokking regime (wd=3e-5)")
+            
+            return fig
 
 
-        
         def single_metric_curves(acc_loss):
             if acc_loss=="Accuracy":
                 indices=[1]
@@ -4111,7 +4167,7 @@ if __name__== "__main__":
                         #acc_pruning=data_dic[wm_key][1]
                         #loss_pruning=data_dic[wm_key][2]
                         pruning_data=data_dic[wm_key][index]
-                        fig.add_trace(go.Scatter(x=pruning_percents,y=pruning_data,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}',showlegend=showleg),row=index,col=1)
+                        fig.add_trace(go.Scatter(x=pruning_percents,y=pruning_data,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}',showlegend=showleg),row=1,col=2)
                         count+=1
                 showleg=False
                 fig.update_xaxes(title_text='Pruned weights',range=[0.5,1])
@@ -4121,9 +4177,10 @@ if __name__== "__main__":
             fig.show()
             return None
         
-        single_metric_curves("Both")
+        #single_metric_curves("Both")
+        learn_grok_plot().show()
         
-    test=plot_prune_curves_from_dict(sample_saved_dic)               
+    test=plot_modadd_prune_curves_from_dict(sample_saved_dic)               
     
     #print(f'keys')
     #print(test.keys())
