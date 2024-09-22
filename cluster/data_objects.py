@@ -21,6 +21,7 @@ import torch
 import torch.nn as nn
 import torchvision
 from torch.utils.data import TensorDataset, DataLoader
+import copy
 
 
 
@@ -2009,49 +2010,49 @@ class seed_run_container():
         fig.show()
 
 
-def get_activations(model, x):
-    activations = {}
-    hooks = []
+# def get_activations(model, x):
+#     activations = {}
+#     hooks = []
 
-    def save_activation(name):
-        """Hook function that saves the output of the layer to the activations dict."""
-        def hook(model, input, output):
-            activations[name] = output.detach()
-        return hook
+#     def save_activation(name):
+#         """Hook function that saves the output of the layer to the activations dict."""
+#         def hook(model, input, output):
+#             activations[name] = output.detach()
+#         return hook
 
-    def register_hooks():
-        """Registers hooks on specified layer types across the entire model."""
-        print('names')
-        for name, module in model.named_modules():
-            print(f'name, module {name}, {module}')
-            # Check specifically for the layer types or names you are interested in
-            if isinstance(module, (nn.Conv2d, nn.Linear,nn.MaxPool2d)):
-                # Adjust name to include full path for clarity, especially useful for layers within ModuleList
-                full_name = f'{name} ({module.__class__.__name__})'
-                print(f'Registering hook on {full_name}')
-                hook = module.register_forward_hook(save_activation(full_name))
-                hooks.append(hook)
-            #Have to manually add the hook for pooling layer 5
-        # full_name = f'conv_layers.2 ({model.conv_layers[2].__class__.__name__})'
-        # hook=model.conv_layers[2].register_forward_hook(save_activation(full_name))
-        # full_name = f'conv_layers.5 ({model.conv_layers[5].__class__.__name__})'
-        # hook=model.conv_layers[5].register_forward_hook(save_activation(full_name))
+#     def register_hooks():
+#         """Registers hooks on specified layer types across the entire model."""
+#         print('names')
+#         for name, module in model.named_modules():
+#             print(f'name, module {name}, {module}')
+#             # Check specifically for the layer types or names you are interested in
+#             if isinstance(module, (nn.Conv2d, nn.Linear,nn.MaxPool2d)):
+#                 # Adjust name to include full path for clarity, especially useful for layers within ModuleList
+#                 full_name = f'{name} ({module.__class__.__name__})'
+#                 print(f'Registering hook on {full_name}')
+#                 hook = module.register_forward_hook(save_activation(full_name))
+#                 hooks.append(hook)
+#             #Have to manually add the hook for pooling layer 5
+#         # full_name = f'conv_layers.2 ({model.conv_layers[2].__class__.__name__})'
+#         # hook=model.conv_layers[2].register_forward_hook(save_activation(full_name))
+#         # full_name = f'conv_layers.5 ({model.conv_layers[5].__class__.__name__})'
+#         # hook=model.conv_layers[5].register_forward_hook(save_activation(full_name))
 
-        #     # Explicitly check if this is the layer you are particularly interested in
-        # if name == "conv_layers.5":
-        #     print(f"Special hook registered on {full_name}")
+#         #     # Explicitly check if this is the layer you are particularly interested in
+#         # if name == "conv_layers.5":
+#         #     print(f"Special hook registered on {full_name}")
 
-    def remove_hooks():
-        """Removes all hooks from the model."""
-        for hook in hooks:
-            hook.remove()
-        print('All hooks removed.')
+#     def remove_hooks():
+#         """Removes all hooks from the model."""
+#         for hook in hooks:
+#             hook.remove()
+#         print('All hooks removed.')
 
-    register_hooks()
-    # Forward pass to get outputs
-    output = model(x)
+#     register_hooks()
+#     # Forward pass to get outputs
+#     output = model(x)
 
-    return activations, output, remove_hooks
+#     return activations, output, remove_hooks
 
 def generate_test_set(dataset,size):
     dtype=torch.float32
@@ -2090,47 +2091,7 @@ def generate_test_set(dataset,size):
     return X_test.view(test_size,1,L,L),y_test
 
 #activations functions
-def get_activations(model, x):
-    activations = {}
-    hooks = []
 
-    def save_activation(name):
-        """Hook function that saves the output of the layer to the activations dict."""
-        def hook(model, input, output):
-            activations[name] = output.detach()
-        return hook
-
-    def register_hooks():
-        """Registers hooks on specified layer types across the entire model."""
-        for name, module in model.named_modules():
-            # Check specifically for the layer types or names you are interested in
-            if isinstance(module, (nn.Conv2d, nn.Linear,nn.MaxPool2d)):
-                # Adjust name to include full path for clarity, especially useful for layers within ModuleList
-                full_name = f'{name} ({module.__class__.__name__})'
-                print(f'Registering hook on {full_name}')
-                hook = module.register_forward_hook(save_activation(full_name))
-                hooks.append(hook)
-            #Have to manually add the hook for pooling layer 5
-        # full_name = f'conv_layers.2 ({model.conv_layers[2].__class__.__name__})'
-        # hook=model.conv_layers[2].register_forward_hook(save_activation(full_name))
-        # full_name = f'conv_layers.5 ({model.conv_layers[5].__class__.__name__})'
-        # hook=model.conv_layers[5].register_forward_hook(save_activation(full_name))
-
-        #     # Explicitly check if this is the layer you are particularly interested in
-        # if name == "conv_layers.5":
-        #     print(f"Special hook registered on {full_name}")
-
-    def remove_hooks():
-        """Removes all hooks from the model."""
-        for hook in hooks:
-            hook.remove()
-        print('All hooks removed.')
-
-    register_hooks()
-    # Forward pass to get outputs
-    output = model(x)
-
-    return activations, output, remove_hooks
 
 
 from scipy.ndimage import label
@@ -2346,3 +2307,294 @@ def compute_energy_torch_batch(spin_grids, J=1):
 
     return normalized_energy
 
+
+
+
+#ModAdd Fourier activations
+
+def get_activations(model, x):
+    activations = {}
+    hooks = []
+
+    def save_activation(name):
+        """Hook function that saves the output of the layer to the activations dict."""
+        def hook(model, input, output):
+            activations[name] = output.detach()
+        return hook
+
+    def register_hooks():
+        """Registers hooks on specified layer types across the entire model."""
+        for name, module in model.named_modules():
+            # Check specifically for the layer types or names you are interested in
+            if isinstance(module, (nn.Conv2d, nn.Linear, nn.MaxPool2d, nn.ReLU)):
+                # Adjust name to include full path for clarity, especially useful for layers within ModuleList
+                full_name = f'{name} ({module.__class__.__name__})'
+                print(f'Registering hook on {full_name}')
+                hook = module.register_forward_hook(save_activation(full_name))
+                hooks.append(hook)
+
+    def remove_hooks():
+        """Removes all hooks from the model."""
+        for hook in hooks:
+            hook.remove()
+        print('All hooks removed.')
+
+    register_hooks()
+    # Forward pass to get outputs
+    output = model(x)
+    remove_hooks()  # Ensure hooks are removed after forward pass
+
+    return activations, output
+
+def activations_fourier(runobject):
+    P=runobject.trainargs.P
+    #1. Make a P^2x2 tensor of kx,ky values - i.e. just 2*pi/P (nx,ny) for nx,ny between 0 and P-1
+    kxs=2*torch.pi*torch.arange(P)/P
+    ks=torch.cartesian_prod(torch.tensor(kxs),torch.tensor(kxs))
+    #2. Make a P^2x2P tensor of fourier transformed input vectors. By writing out the fourier transfrom 
+    ####of the (X,Y) vector explicitly you can see that it's just the fourier of x in x and the fourier of y
+    ####in y. (pg 460-462 project notes in Remarkable). 
+    ### Note that here the entries are complex. So I think the thing to do is to symmetrize to real frequencies
+    ### by considering e^{ikx}+e^{-ikx} and e^{ikx}-e^{-ikx} as the components of the fourier transform. This just amounts
+    #to using a different fourier basis. I think practically this will mean that instead of the each one-hot
+    # half of the two-hot being e^{ikx} it'll be p/2 cos(kx)'s, interleaved with p/s sin(kx)'s. I guess this is what
+    #the supreme toad did.
+    fourier_vector_cos=torch.zeros(2*P)
+    fourier_vector_sin=torch.zeros(2*P)
+    kx,ky=ks[0,0],ks[0,1]
+    
+    
+    #I'll just have the redundant frequencies. Can always change later
+    fourier_vector_cos[torch.arange(P)]=torch.cos(kx*torch.arange(0,P)/P)
+    fourier_vector_sin[torch.arange(P)]=torch.sin(kx*torch.arange(0,P))
+    fourier_vector_cos[torch.arange(P,2*P)]=torch.cos(ky*torch.arange(P))
+    fourier_vector_sin[torch.arange(P,2*P)]=torch.sin(ky*torch.arange(P))
+
+    fourier_cos=torch.zeros(P*P,2*P)
+
+    # Create a range tensor of shape (P,)
+    arange_tensor = torch.arange(P)
+
+    # Expand arange_tensor to shape (P^2, P) for broadcasting
+    arange_expanded = arange_tensor.unsqueeze(0).expand(P * P, P)
+    fourier_cos[:, :P] = torch.cos(ks[:, 0:1] * arange_expanded)
+    fourier_cos[:, P:] = torch.cos(ks[:, 1:2] * arange_expanded)
+
+
+def load_model(runobject,epoch):
+    learning_rate=runobject.trainargs.lr
+    weight_decay=runobject.trainargs.weight_decay
+    model=runobject.modelclass(**runobject.modelconfig)
+    model=runobject.modelinstance
+    model_dic=copy.deepcopy(runobject.models[epoch]['model'])
+    result=model.load_state_dict(model_dic,strict=False)
+    if len(result.missing_keys)>0 or len(result.unexpected_keys)>0:
+        print("Missing keys:", result.missing_keys)
+        print("Unexpected keys:", result.unexpected_keys)
+    return model, model_dic
+
+
+    
+    
+        
+    
+
+    
+
+def activations_fourier(runobject):
+    P=runobject.trainargs.P
+    #1. Make a P^2x2 tensor of kx,ky values - i.e. just 2*pi/P (nx,ny) for nx,ny between 0 and P-1
+    kxs=2*torch.pi*torch.arange(P)/P
+    ks=torch.cartesian_prod(torch.tensor(kxs),torch.tensor(kxs))
+    #2. Make a P^2x2P tensor of fourier transformed input vectors. By writing out the fourier transfrom 
+    ####of the (X,Y) vector explicitly you can see that it's just the fourier of x in x and the fourier of y
+    ####in y. (pg 460-462 project notes in Remarkable). 
+    ### Note that here the entries are complex. So I think the thing to do is to symmetrize to real frequencies
+    ### by considering e^{ikx}+e^{-ikx} and e^{ikx}-e^{-ikx} as the components of the fourier transform. This just amounts
+    #to using a different fourier basis. I think practically this will mean that instead of the each one-hot
+    # half of the two-hot being e^{ikx} it'll be p/2 cos(kx)'s, interleaved with p/s sin(kx)'s. I guess this is what
+    #the supreme toad did.
+    fourier_vector_cos=torch.zeros(2*P)
+    fourier_vector_sin=torch.zeros(2*P)
+    kx,ky=ks[0,0],ks[0,1]
+    
+    
+    #I'll just have the redundant frequencies. Can always change later
+    fourier_vector_cos[torch.arange(P)]=torch.cos(kx*torch.arange(0,P)/P)
+    fourier_vector_sin[torch.arange(P)]=torch.sin(kx*torch.arange(0,P))
+    fourier_vector_cos[torch.arange(P,2*P)]=torch.cos(ky*torch.arange(P))
+    fourier_vector_sin[torch.arange(P,2*P)]=torch.sin(ky*torch.arange(P))
+
+    fourier_cos=torch.zeros(P*P,2*P)
+
+    # Create a range tensor of shape (P,)
+    arange_tensor = torch.arange(P)
+
+    # Expand arange_tensor to shape (P^2, P) for broadcasting
+    arange_expanded = arange_tensor.unsqueeze(0).expand(P * P, P)
+    fourier_cos[:, :P] = torch.cos(ks[:, 0:1] * arange_expanded)
+    fourier_cos[:, P:] = torch.cos(ks[:, 1:2] * arange_expanded)
+    
+    #for loop version of same code.
+    # fourier_cos_2=torch.zeros(P*P,2*P)
+    # for i in range(P * P):
+    #     # Fill the first P columns with cosines of ks[:, 0] values
+    #     fourier_cos_2[i, :P] = torch.cos(ks[i, 0] * torch.arange(P))
+    #     # Fill the second P columns with cosines of ks[:, 1] values
+    #     fourier_cos_2[i, P:] = torch.cos(ks[i, 1] * torch.arange(P))
+
+    # print(torch.allclose(fourier_cos,fourier_cos_2))
+
+
+    #It would be good to have a benchmark of what happens in the computational basis
+    comp_basis=torch.zeros(P*P,2*P)
+    comp_indices=ks/(2*torch.pi/P)
+    comp_indices_int=comp_indices.int()
+    comp_indices_int[:,1]=comp_indices_int[:,1]+P
+
+    #row_indices = torch.arange(comp_indices_int.shape[1])
+    #col_indices=comp_indices_int[range(P*P),row_indices]
+    #comp_basis[row_indices,col_indices]=1
+
+    
+    comp_basis[torch.arange(P*P), comp_indices_int[torch.arange(P*P),0]] = 1
+    comp_basis[torch.arange(P*P), comp_indices_int[torch.arange(P*P),1]] = 1
+
+    
+        
+    
+    #3. Run these through the model and extract the P^2x512 activations for each fourier frequency and each neuron
+    test_model=load_model(runobject,runobject.model_epochs()[-1])[0]
+    #Note that the hook applies after the layer is done. So it gives the activations at the end of the layer. 
+    #Note also that to get the activations after ReLU you need to add ReLU to the list.
+    with torch.no_grad():
+        test_acts_f,output_f=get_activations(test_model,fourier_cos)#Note the output is already registered as the hook on the last layer
+        test_acts_c,output_c=get_activations(test_model,comp_basis)
+
+
+
+    
+    #sample_neuron=random.randint(0,511)
+    sample_neuron=0
+    after_ReLU_f=test_acts_f['model.1 (ReLU)']
+    after_ReLU_sample_f=after_ReLU_f[:,sample_neuron]
+
+    after_ReLU_c=test_acts_c['model.1 (ReLU)']
+    after_ReLU_sample_c=after_ReLU_c[:,sample_neuron]
+    
+
+    ks_reshape=ks.reshape(P,P,2)
+    comp_indices_reshape=comp_indices_int.reshape(P,P,2)
+    after_ReLU_f_reshape=after_ReLU_f.reshape(P,P,after_ReLU_f.shape[-1])
+    after_ReLU_c_reshape=after_ReLU_c.reshape(P,P,after_ReLU_c.shape[-1])
+
+
+    def activation_one_neuron():
+        fig=make_subplots(rows=1,cols=2,subplot_titles=[f'Fourier - {sample_neuron} neuron',f'Comp - {sample_neuron} neuron'])
+        fig.add_trace(go.Scatter(x=np.arange(after_ReLU_sample_f.shape[0]),y=after_ReLU_sample_f.detach().numpy(),name='Fourier'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=np.arange(after_ReLU_sample_c.shape[0]),y=after_ReLU_sample_c.detach().numpy(),name='Comp'),row=1,col=2)
+        fig.update_yaxes(title_text=f'Activation on neuron {sample_neuron}')
+        fig.update_xaxes(title_text='Fourier frequency (kx,ky)',row=1,col=1)
+        fig.update_xaxes(title_text='Comp basis (x,y)',row=1,col=2)
+        fig.update_layout(title_text=f'Activations after ReLU on randomly sampled neuron {sample_neuron}')
+        fig.show()
+    
+    def activation_all_neurons():
+        #print(f'reshape shape: {after_ReLU_f.reshape(P,P,after_ReLU_f.shape[-1]).shape}')
+        eps=1e-8
+        max_mean_f=torch.max(after_ReLU_f_reshape,dim=-1).values/(after_ReLU_f_reshape.mean(dim=-1)+eps)
+        max_mean_c=torch.max(after_ReLU_c_reshape,dim=-1).values/(after_ReLU_c_reshape.mean(dim=-1)+eps)
+
+        normed_max_mean_f=max_mean_f/torch.mean(max_mean_f)
+        normed_max_mean_c=max_mean_c/torch.mean(max_mean_c)
+
+        zmin = min(normed_max_mean_f.min().item(), normed_max_mean_c.min().item())
+        zmax = max(normed_max_mean_f.max().item(), normed_max_mean_c.max().item())
+
+        # Add heatmap traces with shared colorscale
+        # fig.add_trace(go.Heatmap(z=z1, zmin=zmin, zmax=zmax, colorscale='Viridis'), row=1, col=1)
+        # fig.add_trace(go.Heatmap(z=z2, zmin=zmin, zmax=zmax, colorscale='Viridis'), row=1, col=2)
+
+
+        fig=make_subplots(rows=1,cols=2,subplot_titles=['Fourier','Comp'],shared_yaxes=True,shared_xaxes=True)
+        fig.add_trace(go.Heatmap(z=normed_max_mean_f.detach().numpy(),zmin=zmin, zmax=zmax,colorscale='Viridis',name='Fourier'),row=1,col=1)
+        fig.add_trace(go.Heatmap(z=normed_max_mean_c.detach().numpy(),zmin=zmin, zmax=zmax,colorscale='Viridis',name='Comp'),row=1,col=2)
+        
+        fig.update_xaxes(title_text='Fourier kx',row=1,col=1)
+        fig.update_yaxes(title_text='Fourier ky',row=1,col=1)
+
+        fig.update_xaxes(title_text='Computational x',row=1,col=2)
+        fig.update_yaxes(title_text='Computational y',row=1,col=2)
+
+        fig.update_layout(title_text='Max activation/mean activation for all neurons')
+
+
+
+        fig.show()
+
+    def count_within_std(tensor, threshold,times_range=1e-1):
+        # Assuming tensor shape is (P, P, d)
+        P, _, d = tensor.shape
+        
+        # Find max and std for each PxP slice
+        max_values, _ = torch.max(tensor.reshape(-1, d), dim=0)
+        #std_values = torch.std(tensor.reshape(-1, d), dim=0)
+        std_values=times_range*(max_values-torch.min(tensor.reshape(-1,d),dim=0).values)
+        
+        # Create a mask for values within one std of max
+        mask = (tensor >= (max_values - std_values)) & (tensor <= (max_values + std_values))
+        
+        # # Count True values in each slice
+        # counts = torch.sum(mask, dim=(0, 1))
+        
+        # # Set count to zero where max doesn't exceed the threshold
+        # counts = torch.where(max_values > threshold, counts, torch.zeros_like(counts))
+
+            # Count True values in each slice
+        counts = torch.sum(mask, dim=(0, 1)).float()  # Convert to float
+        
+        # Set count to NaN where max doesn't exceed the threshold
+        counts = torch.where(max_values > threshold, counts, torch.full_like(counts, float('nan')))
+        
+        return counts
+    
+    def frequencies_per_neuron():
+        #print(f'reshape shape: {after_ReLU_f.reshape(P,P,after_ReLU_f.shape[-1]).shape}')
+        eps=1e-8
+        times_range=10e-2
+
+
+        fig=make_subplots(rows=1,cols=2,subplot_titles=['Fourier','Comp'],shared_yaxes=True,shared_xaxes=True,horizontal_spacing=0.08)
+        within_sd_f=count_within_std(after_ReLU_f_reshape,1e-2,times_range)
+        within_sd_c=count_within_std(after_ReLU_c_reshape,1e-2,times_range)
+
+        within_sd_f=remove_nans(within_sd_f)
+        within_sd_c=remove_nans(within_sd_c)
+
+
+        fig.add_trace(go.Scatter(x=np.arange(within_sd_f.shape[0]),y=within_sd_f.detach().numpy(),name='Fourier'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=np.arange(within_sd_c.shape[0]),y=within_sd_c.detach().numpy(),name='Comp'),row=1,col=2)
+
+        fig.update_yaxes(title_text='Number of frequencies')
+        fig.update_xaxes(title_text='Neuron index')
+
+        fig.update_layout(title_text=f'Number of frequencies within {100*times_range}% of range of maximum')
+
+        fig.update_layout(
+            yaxis=dict(title='Frequencies', showticklabels=True),
+            yaxis2=dict(title='Frequencies', showticklabels=True),
+            xaxis=dict(title='Index'),
+            xaxis2=dict(title='Index'),
+            # height=500,
+            # width=900,
+            showlegend=True
+        )
+
+        # Update y-axes to ensure they have the same range
+        y_min = min(within_sd_f.min().item(), within_sd_c.min().item())
+        y_max = max(within_sd_f.max().item(), within_sd_c.max().item())
+        fig.update_yaxes(range=[y_min, y_max])
+        fig.show()
+
+        #activation_all_neurons()
+        frequencies_per_neuron()

@@ -704,7 +704,7 @@ def activations_fourier(runobject):
 
         fig.update_layout(
             yaxis=dict(title='Frequencies', showticklabels=True),
-            yaxis2=dict(title='Frequencies', showticklabels=True),
+            yaxis2=dict(title='', showticklabels=True),
             xaxis=dict(title='Index'),
             xaxis2=dict(title='Index'),
             # height=500,

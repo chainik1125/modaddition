@@ -1324,7 +1324,7 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
     return accuracies,losses
 
 
-def iterative_prune_from_original_mod(model, original_weights, layers_to_prune, pruning_percents,pruning_type,test_loader=None,type="Mod",loss_function="CrossEntropy"):
+def iterative_prune_from_original_mod(runobject,model, original_weights, layers_to_prune, pruning_percents,pruning_type,test_loader=None,type="Mod",loss_function="CrossEntropy"):
     """
     Iteratively prunes the model from the original weights and evaluates accuracy after each level of pruning.
     
@@ -1370,7 +1370,7 @@ def iterative_prune_from_original_mod(model, original_weights, layers_to_prune, 
                 prune.l1_unstructured(module, name='weight', amount=percent)
                 prune.remove(module, 'weight')
 
-        accuracy,loss = acc_loss_test_mod(model,test_loader=test_loader,type=type,loss_function=loss_function)  # Assuming acc_los is defined elsewhere
+        accuracy,loss = acc_loss_test_mod(model,runobject,test_loader=test_loader,type=type,loss_function=loss_function)  # Assuming acc_los is defined elsewhere
         accuracies.append(accuracy)
         losses.append(loss)
     reset_to_original_weights(model,original_weights)
@@ -2417,30 +2417,26 @@ def mod_add_fourier_activations_dict(runobject):
 
         # Stack the tensors along a new dimension (N, 2)
         N=tensor1.shape[0]
-        P=(tensor1.shape[1]+tensor2.shape[1])//2
+        P=(tensor1.shape[1]+tensor2.shape[1])//4
 
-        tensor1_cut=torch.cat((tensor1[:,1:P//2],tensor2[:,P//2:]),dim=1)
-        tensor1_x_const=tensor1[:,0]
-        tensor1_y_const=tensor1[:,P//2]
-        print(f'tensor_x 1 {tensor1_x_const[:5]}')
-        print(f'tensor_y 1 {tensor1_y_const[:5]}')
-        
-        
-        print(f'tensor1_cut shape {tensor1_cut.shape}')
-        print(f'tensor2 shape {tensor2.shape}')
-        exit()
-        
+        # print(f'N {N} P {P}')
+        # print(f'tensor1 shape {tensor1.shape}')
+        # print(f'tensor2 shape {tensor2.shape}')
+        # exit()
 
         # Reshape A and B to (N, P, 2) to separate alternating columns
-        tensor1_reshaped = tensor1_cut.view(N, P-1, 2)  # Shape (N, P, 2)
-        tensor2_reshaped = tensor2.view(N, P-1, 2)  # Shape (N, P, 2)
+        tensor1_reshaped = tensor1.view(N, P, 2)  # Shape (N, P, 2)
+        tensor2_reshaped = tensor2.view(N, P, 2)  # Shape (N, P, 2)
 
         # Stack and interleave the last dimension of A and B
         interleaved = torch.stack((tensor1_reshaped, tensor2_reshaped), dim=3)  # Shape (N, P, 2, 2)
-        interleaved_tensor = interleaved.view(N, 2 * (P-1))  # Reshape back to (N, 2P) interleaving A and B
+        interleaved_tensor = interleaved.view(N, 4 * P)  # Reshape back to (N, 2P) interleaving A and B
         
         #interleaved_tensor=torch.cat((tensor1_cut,tensor1_cut,interleaved_tensor),dim=1)
-        print(f'interleaved_tensor shape {interleaved_tensor.shape}')
+        
+        #Only consider first half:
+        interleaved_tensor=interleaved_tensor[:,:2*P]
+        
         return interleaved_tensor
 
     
@@ -2473,15 +2469,15 @@ def mod_add_fourier_activations_dict(runobject):
         # # fourier_sin[:, :P] = torch.sin(ks[:, 0:1] * arange_expanded)
         # # fourier_sin[:, P:] = torch.sin(ks[:, 1:2] * arange_expanded)
 
-        fourier_half_cos_1=torch.zeros(P*P,(P+1)//2)#You add the constant term seperately
-        fourier_half_cos_2=torch.zeros(P*P,(P+1)//2)
+        fourier_half_cos_1=torch.zeros(P*P,P)
+        fourier_half_cos_2=torch.zeros(P*P,P)
 
-        fourier_half_sin_1=torch.zeros(P*P,(P-1)//2)
-        fourier_half_sin_2=torch.zeros(P*P,(P-1)//2)
+        fourier_half_sin_1=torch.zeros(P*P,P)
+        fourier_half_sin_2=torch.zeros(P*P,P)
 
 
-        arange_tensor_half_cos = torch.arange(1,1+P//2+1)
-        arange_tensor_half_sin = torch.arange(1,P//2+1)
+        arange_tensor_half_cos = torch.arange(P)
+        arange_tensor_half_sin = torch.arange(P)
         
 
         arange_expanded_half_cos = arange_tensor_half_cos.unsqueeze(0).expand(P * P, -1)
@@ -2502,24 +2498,15 @@ def mod_add_fourier_activations_dict(runobject):
         fourier_half_cos_2[:, :] = torch.cos(ks[:, 1:2] * arange_expanded_half_cos)
         fourier_half_sin_2[:, :] = torch.sin(ks[:, 1:2] * arange_expanded_half_sin)
 
-        fourier_half_cos=torch.cat((fourier_half_cos_1,fourier_half_cos_2),dim=1)
-        fourier_half_sin=torch.cat((fourier_half_sin_1,fourier_half_sin_2),dim=1)
+        fourier_cos=torch.cat((fourier_half_cos_1,fourier_half_cos_2),dim=1)
+        fourier_sin=torch.cat((fourier_half_sin_1,fourier_half_sin_2),dim=1)        
 
+        fourier_cos=fourier_cos/((torch.linalg.norm(fourier_cos,dim=1).unsqueeze(1))+1e-8)
+        fourier_sin=fourier_sin/(torch.linalg.norm(fourier_sin,dim=1).unsqueeze(1)+1e-8)
         
-        
-        fourier_combined=interleave_tensors(fourier_half_cos,fourier_half_sin)
+        fourier_combined=interleave_tensors(fourier_cos,fourier_sin)
 
-        print(fourier_combined.shape)
-        exit()
-        
-
-
-
-
-
-        
-    
-        return fourier_cos,fourier_sin
+        return fourier_combined
     
     def make_comp_basis(runobject):
         P=runobject.trainargs.P
@@ -2537,79 +2524,71 @@ def mod_add_fourier_activations_dict(runobject):
         
         comp_basis[torch.arange(P*P), comp_indices_int[torch.arange(P*P),0]] = 1
         comp_basis[torch.arange(P*P), comp_indices_int[torch.arange(P*P),1]] = 1
+
+        comp_basis=comp_basis/(torch.linalg.norm(comp_basis,dim=1).unsqueeze(1)+1e-8)
         
         return comp_basis
     
     test_model=load_model(runobject,runobject.model_epochs()[-1])[0]
     test_model.eval()
-    fourier_cos,fourier_sin=make_fourier_basis(runobject)
+    fourier_basis=make_fourier_basis(runobject)
     comp_basis=make_comp_basis(runobject)
     #Note that the hook applies after the layer is done. So it gives the activations at the end of the layer. 
     #Note also that to get the activations after ReLU you need to add ReLU to the list.
     with torch.no_grad():
-        test_acts_cos_f,output_cos_f=get_activations(test_model,fourier_cos)#Note the output is already registered as the hook on the last layer
-        test_acts_sin_f,output_sin_f=get_activations(test_model,fourier_sin)
+        test_acts_f,output_f=get_activations(test_model,fourier_basis)#Note the output is already registered as the hook on the last layer
         test_acts_c,output_c=get_activations(test_model,comp_basis)
 
-    return test_acts_cos_f,test_acts_sin_f,test_acts_c
+    return test_acts_f,test_acts_c
 
 def modadd_activations_heatmap(grokfolder,nongrokfolder,layer='model.1 (ReLU)',eps=1e-8):
     
     def extract_final_series_heatmap(runobject,layer='model.1 (ReLU)',eps=1e-8):
         P=runobject.trainargs.P
-        cos_f_acts,sin_f_acts,comp_acts=mod_add_fourier_activations_dict(runobject)
+        f_acts,comp_acts=mod_add_fourier_activations_dict(runobject)
         
-        cos_f_layer=cos_f_acts[layer]
-        sin_f_layer=sin_f_acts[layer]
+        f_layer=f_acts[layer]
         comp_layer=comp_acts[layer]
 
-        cos_f_layer=cos_f_layer.reshape(P,P,cos_f_layer.shape[-1])
-        sin_f_layer=sin_f_layer.reshape(P,P,sin_f_layer.shape[-1])
+        f_layer=f_layer.reshape(P,P,f_layer.shape[-1]) 
         comp_layer=comp_layer.reshape(P,P,comp_layer.shape[-1])
 
-        max_mean_cos=torch.max(cos_f_layer,dim=-1).values/(cos_f_layer.mean(dim=-1)+eps)
-        max_mean_sin=torch.max(sin_f_layer,dim=-1).values/(sin_f_layer.mean(dim=-1)+eps)
+        max_mean_f=torch.max(f_layer,dim=-1).values/(f_layer.mean(dim=-1)+eps)
+        
         max_mean_comp=torch.max(comp_layer,dim=-1).values/(comp_layer.mean(dim=-1)+eps)
 
-        normed_max_mean_cos=max_mean_cos/torch.mean(max_mean_cos)
-        normed_max_mean_sin=max_mean_sin/torch.mean(max_mean_sin)
+        normed_max_mean_f=max_mean_f/torch.mean(max_mean_f)
         normed_max_mean_comp=max_mean_comp/torch.mean(max_mean_comp)
 
-        return normed_max_mean_cos,normed_max_mean_sin,normed_max_mean_comp
+        return normed_max_mean_f,normed_max_mean_comp
 
     def average_final_series(grokfolder,nongrokfolder):
         grokruns=open_files_in_leaf_directories(grokfolder)
         nongrokruns=open_files_in_leaf_directories(nongrokfolder)
 
-        grok_cos_means=[]
-        grok_sin_means=[]
-        comp_means=[]
+        grok_f_means=[]
+        grok_comp_means=[]
 
         for grokrun in grokruns:
-            cos,sin,comp=extract_final_series_heatmap(grokrun)
-            grok_cos_means.append(cos)
-            grok_sin_means.append(sin)
-            comp_means.append(comp)
+            fourier,comp=extract_final_series_heatmap(grokrun)
+            grok_f_means.append(fourier)
+            grok_comp_means.append(comp)
         
-        grok_mean_series_cos=torch.stack(grok_cos_means,dim=0).mean(dim=0)
-        grok_mean_series_sin=torch.stack(grok_sin_means,dim=0).mean(dim=0)
-        grok_mean_series_comp=torch.stack(comp_means,dim=0).mean(dim=0)
+        grok_mean_series_f=torch.stack(grok_f_means,dim=0).mean(dim=0)
+        grok_mean_series_comp=torch.stack(grok_comp_means,dim=0).mean(dim=0)
 
-        nongrok_cos_means=[]
-        nongrok_sin_means=[]
+        nongrok_f_means=[]
         nongrok_comp_means=[]
 
         for nongrokrun in nongrokruns:
-            cos,sin,comp=extract_final_series_heatmap(nongrokrun)
-            nongrok_cos_means.append(cos)
-            nongrok_sin_means.append(sin)
+            fourier,comp=extract_final_series_heatmap(nongrokrun)
+            nongrok_f_means.append(fourier)
             nongrok_comp_means.append(comp)
         
-        nongrok_mean_series_cos=torch.stack(nongrok_cos_means,dim=0).mean(dim=0)
-        nongrok_mean_series_sin=torch.stack(nongrok_sin_means,dim=0).mean(dim=0)
+        nongrok_mean_series_f=torch.stack(nongrok_f_means,dim=0).mean(dim=0)
         nongrok_mean_series_comp=torch.stack(nongrok_comp_means,dim=0).mean(dim=0)
 
-        return (grok_mean_series_cos,grok_mean_series_sin,grok_mean_series_comp),(nongrok_mean_series_cos,nongrok_mean_series_sin,nongrok_mean_series_comp)
+        return (grok_mean_series_f,grok_mean_series_comp),(nongrok_mean_series_f,nongrok_mean_series_comp)
 
     grok_means,nongrok_means=average_final_series(grokfolder,nongrokfolder)
 
@@ -2618,24 +2597,19 @@ def modadd_activations_heatmap(grokfolder,nongrokfolder,layer='model.1 (ReLU)',e
         r'$\text{Cosine Fourier - Learn}$',r'$\text{Cosine Fourier - Grok}$',
     r'$\text{Sine Fourier - Learn}$',r'$\text{Sine Fourier - Grok}$'])
 
-    max_cos=torch.max(torch.max(grok_means[0]),torch.max(nongrok_means[0])).item()
-    max_sin=torch.max(torch.max(grok_means[1]),torch.max(nongrok_means[1])).item()
-    max_comp=torch.max(torch.max(grok_means[2]),torch.max(nongrok_means[2])).item()
+    max_f=torch.max(torch.max(grok_means[0]),torch.max(nongrok_means[0])).item()
+    max_comp=torch.max(torch.max(grok_means[1]),torch.max(nongrok_means[1])).item()
 
-    min_cos=torch.min(torch.min(grok_means[0]),torch.min(nongrok_means[0])).item()
-    min_sin=torch.min(torch.min(grok_means[1]),torch.min(nongrok_means[1])).item()
-    min_comp=torch.min(torch.min(grok_means[2]),torch.min(nongrok_means[2])).item()
+    min_f=torch.min(torch.min(grok_means[0]),torch.min(nongrok_means[0])).item()
+    min_comp=torch.min(torch.min(grok_means[1]),torch.min(nongrok_means[1])).item()
 
 
 
-    fig.add_trace(go.Heatmap(z=nongrok_means[2].detach().numpy(),zmax=max_comp,zmin=min_comp,colorscale='Viridis'),row=1,col=1)
-    fig.add_trace(go.Heatmap(z=grok_means[2].detach().numpy(),zmax=max_comp,zmin=min_comp,colorscale='Viridis'),row=1,col=2)
+    fig.add_trace(go.Heatmap(z=nongrok_means[1].detach().numpy(),zmax=max_comp,zmin=min_comp,colorscale='Viridis',showscale=False),row=1,col=1)
+    fig.add_trace(go.Heatmap(z=grok_means[1].detach().numpy(),zmax=max_comp,zmin=min_comp,colorscale='Viridis',colorbar=dict(title=dict(text="Computational",side="top"), y=1.055, len=0.45, yanchor="top")),row=1,col=2)
 
-    fig.add_trace(go.Heatmap(z=nongrok_means[0].detach().numpy(),zmax=max_cos,zmin=min_cos,colorscale='Viridis'),row=2,col=1)
-    fig.add_trace(go.Heatmap(z=grok_means[0].detach().numpy(),zmax=max_cos,zmin=min_cos,colorscale='Viridis'),row=2,col=2)
-
-    fig.add_trace(go.Heatmap(z=nongrok_means[1].detach().numpy(),zmax=max_sin,zmin=min_sin,colorscale='Viridis'),row=3,col=1)
-    fig.add_trace(go.Heatmap(z=grok_means[1].detach().numpy(),zmax=max_sin,zmin=min_sin,colorscale='Viridis'),row=3,col=2)
+    fig.add_trace(go.Heatmap(z=nongrok_means[0].detach().numpy(),zmax=max_f,zmin=min_f,colorscale='Viridis',showscale=False),row=2,col=1)
+    fig.add_trace(go.Heatmap(z=grok_means[0].detach().numpy(),zmax=max_f,zmin=min_f,colorscale='Viridis',colorbar=dict(title=dict(text="Fourier",side="top"), y=0.43, len=0.45, yanchor="top")),row=2,col=2)
 
     return fig
 
@@ -2681,33 +2655,27 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
     
     def extract_final_series_weights(runobject):
         P=runobject.trainargs.P
-        cos_f_acts,sin_f_acts,comp_acts=mod_add_fourier_activations_dict(runobject)
+        f_acts,comp_acts=mod_add_fourier_activations_dict(runobject)
         
-        cos_f_layer=cos_f_acts[layer]
-        sin_f_layer=sin_f_acts[layer]
+        f_layer=f_acts[layer]
         comp_layer=comp_acts[layer]
 
-        cos_f_layer=cos_f_layer.reshape(P,P,cos_f_layer.shape[-1])
-        sin_f_layer=sin_f_layer.reshape(P,P,sin_f_layer.shape[-1])
+        f_layer=f_layer.reshape(P,P,f_layer.shape[-1])
         comp_layer=comp_layer.reshape(P,P,comp_layer.shape[-1])
 
-        cos_f_counts=count_within_std(cos_f_layer,threshold=threshold)
-        sin_f_counts=count_within_std(sin_f_layer,threshold=threshold)
+        f_counts=count_within_std(f_layer,threshold=threshold)
         comp_counts=count_within_std(comp_layer,threshold=threshold)
 
 
 
-        cos_f_max_neuron=torch.max(cos_f_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
-        cos_f_max_acts=cos_f_layer[:,:,cos_f_max_neuron]
-
-        sin_f_max_neuron=torch.max(sin_f_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
-        sin_f_max_acts=sin_f_layer[:,:,sin_f_max_neuron]
+        f_max_neuron=torch.max(f_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
+        f_max_acts=f_layer[:,:,f_max_neuron]
 
         comp_max_neuron=torch.max(comp_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
         comp_max_acts=comp_layer[:,:,comp_max_neuron]
 
 
-        return (cos_f_counts,sin_f_counts,comp_counts),(cos_f_max_acts,sin_f_max_acts,comp_max_acts)
+        return (f_counts,comp_counts),(f_max_acts,comp_max_acts)
     
     def average_final_series_weights(grokfolder,nongrokfolder):
         grokruns=open_files_in_leaf_directories(grokfolder)
@@ -2715,35 +2683,29 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
 
         
         def collect_results(runfolder):
-            cos_counts=[]
-            sin_counts=[]
+            f_counts=[]
             comp_counts=[]
 
-            cos_maxes=[]
-            sin_maxes=[]
+            f_maxes=[]
             comp_maxes=[]
 
 
             for run in runfolder:
                 counts,max_acts=extract_final_series_weights(run)
-                cos_counts.append(counts[0])
-                sin_counts.append(counts[1])
-                comp_counts.append(counts[2])
+                f_counts.append(counts[0])
+                comp_counts.append(counts[1])
 
-                cos_maxes.append(max_acts[0])
-                sin_maxes.append(max_acts[1])
-                comp_maxes.append(max_acts[2])
+                f_maxes.append(max_acts[0])
+                comp_maxes.append(max_acts[1])
             
-            mean_series_cos=torch.stack(cos_counts,dim=0).mean(dim=0)
-            mean_series_sin=torch.stack(sin_counts,dim=0).mean(dim=0)
+            mean_series_f=torch.stack(f_counts,dim=0).mean(dim=0)
             mean_series_comp=torch.stack(comp_counts,dim=0).mean(dim=0)
             
-            max_series_cos=torch.stack(cos_maxes,dim=0).mean(dim=0)
-            max_series_sin=torch.stack(sin_maxes,dim=0).mean(dim=0)
+            max_series_f=torch.stack(f_maxes,dim=0).mean(dim=0)
             max_series_comp=torch.stack(comp_maxes,dim=0).mean(dim=0)
 
 
-            return (mean_series_cos,mean_series_sin,mean_series_comp),(max_series_cos,max_series_sin,max_series_comp)
+            return (mean_series_f,mean_series_comp),(max_series_f,max_series_comp)
         
 
         grok_means,grok_maxes=collect_results(grokruns)
@@ -2755,45 +2717,32 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
     grok_counts,grok_maxes,nongrok_counts,nongrok_maxes=average_final_series_weights(grokfolder,nongrokfolder)
 
 
-    print(f'grok maxes shape {grok_maxes[0].shape}')
-    grok_maxes_remove_freq_cos=(grok_maxes[0][:grok_maxes[0].shape[0]//2,:grok_maxes[0].shape[0]//2])
-    print(f'grok maxes remove freq shape {grok_maxes_remove_freq_cos.shape}')
-
     
 
-    grok_maxes_remove_freq_cos=(grok_maxes[0][:grok_maxes[0].shape[0]//2,:grok_maxes[0].shape[0]//2])
-    grok_maxes_remove_freq_sin=(grok_maxes[1][:grok_maxes[1].shape[0]//2,:grok_maxes[1].shape[0]//2])
-    grok_combined_maxes_cos_sin = torch.stack((grok_maxes_remove_freq_cos.flatten(), grok_maxes_remove_freq_sin.flatten()), dim=1)  # Shape (N, 2)
-    grok_combined_maxes_cos_sin = grok_combined_maxes_cos_sin.view(-1)
-    print(f'grok combined maxes shape {grok_combined_maxes_cos_sin.shape}')
     
-    grok_comp_maxes=grok_maxes[2].flatten()
+    grok_combined_maxes_cos_sin = grok_maxes[0].flatten()
+    grok_comp_maxes=grok_maxes[1].flatten()
 
-    grok_combined_cos_sin_counts=(grok_counts[0]+grok_counts[1])/2
+    grok_combined_cos_sin_counts=grok_counts[0]
 
     grok_combined_cos_sin_counts=remove_nans(grok_combined_cos_sin_counts)
-    grok_comp_counts=remove_nans(grok_counts[2])    
+    grok_comp_counts=remove_nans(grok_counts[1])    
 
 
-    
-    nongrok_maxes_remove_freq_cos=(nongrok_maxes[0][:nongrok_maxes[0].shape[0]//2,:nongrok_maxes[0].shape[0]//2])
-    nongrok_maxes_remove_freq_sin=(nongrok_maxes[1][:nongrok_maxes[1].shape[0]//2,:nongrok_maxes[1].shape[0]//2])
-    nongrok_combined_maxes_cos_sin = torch.stack((nongrok_maxes_remove_freq_cos[0].flatten(), nongrok_maxes_remove_freq_sin[1].flatten()), dim=1)  # Shape (N, 2)
-    nongrok_combined_maxes_cos_sin = nongrok_combined_maxes_cos_sin.view(-1)
-    nongrok_comp_maxes=nongrok_maxes[2].flatten()
+    nongrok_combined_maxes_cos_sin = nongrok_maxes[0].flatten()
+    nongrok_comp_maxes=nongrok_maxes[1].flatten()
 
-    nongrok_combined_cos_sin_counts=(nongrok_counts[0]+nongrok_counts[1])/2
+    nongrok_combined_cos_sin_counts=nongrok_counts[0]
     nongrok_combined_cos_sin_counts=remove_nans(nongrok_combined_cos_sin_counts)
-    nongrok_comp_counts=remove_nans(nongrok_counts[2])
+    nongrok_comp_counts=remove_nans(nongrok_counts[1])
 
 
 
 
 
     fig=make_subplots(rows=2,cols=3,
-    subplot_titles=['Single neuron - fourier','Single neuron - computational',
-    'Significant inputs - fourier','Significant inputs - computational',
-    'Significant inputs - fourier and computational','Significant inputs - fourier and computational'],
+    subplot_titles=['Single neuron - fourier','Single neuron - computational','Significant inputs - fourier and computational',
+    'Significant inputs - fourier','Significant inputs - computational','Significant inputs - fourier and computational'],
     horizontal_spacing=0.08)
 
     fourier_single_max = max(grok_combined_maxes_cos_sin.max().item(), nongrok_combined_maxes_cos_sin.max().item())
@@ -2824,7 +2773,7 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
     fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_maxes_cos_sin.shape[0]),y=nongrok_combined_maxes_cos_sin.detach().numpy(),name='Learn - fourier',line=dict(color='blue'),showlegend=True),row=2,col=1)
     fig.add_trace(go.Scatter(x=np.arange(nongrok_comp_maxes.shape[0]),y=nongrok_comp_maxes.detach().numpy(),name='Learn - computational',line=dict(color='orange'),showlegend=True),row=2,col=2)
     fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_cos_sin_counts.shape[0]),y=nongrok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - learn',line=dict(color='blue'),showlegend=False),row=2,col=3)
-    fig.add_trace(go.Scatter(x=np.arange(nongrok_counts[2].shape[0]),y=nongrok_comp_counts.detach().numpy(),name='Significant computational basis activations - learn',line=dict(color='orange'),showlegend=False),row=2,col=3)    
+    fig.add_trace(go.Scatter(x=np.arange(nongrok_counts[1].shape[0]),y=nongrok_comp_counts.detach().numpy(),name='Significant computational basis activations - learn',line=dict(color='orange'),showlegend=False),row=2,col=3)    
 
 
     fig.update_layout(title_text=f'Grokking and learning paths both process in the fourier basis')
@@ -2970,14 +2919,14 @@ if __name__== "__main__":
     # exit()
     #original_model_g,original_model_g_dic=load_model(single_run,epoch)
 
-    def acc_loss_test_mod(model,test_loader=None,type="Mod",loss_function="CrossEntropy"):
+    def acc_loss_test_mod(model,runobject,test_loader=None,type="Mod",loss_function="CrossEntropy"):
         loss_criterion=nn.MSELoss()
         if type=='Mod':
-            testloader,test_dataset=generate_test_set_modadd(dataset=dataset,size=1000,run_object=single_run)
+            test_loader,test_dataset=generate_test_set_modadd(dataset=dataset,size=1000,run_object=runobject)
             with torch.no_grad():
                 test_loss = 0.0
                 test_accuracy = 0.0
-                for batch in testloader:
+                for batch in test_loader:
                     X_test,y_test=batch
                     y_val=model(X_test).to(device)
                     float_y=y_test.float().clone().detach()
@@ -2989,7 +2938,7 @@ if __name__== "__main__":
                     else:
                         test_accuracy += (y_val.argmax(dim=1) == y_test).sum().item()
                 
-                test_loss /= len(testloader)
+                test_loss /= len(test_loader)
                 test_accuracy /= len(test_dataset)
         elif type=='mnist':
             test_loss=compute_loss_mnist(model,test_loader,loss_function=loss_function,N=2000,batch_size=50,device=device)
@@ -3983,8 +3932,152 @@ if __name__== "__main__":
     #           #'/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_mnist_wd_1.0_5-8-2024,10:53.pickle']
     # combine_dictionaries(dicpaths)
     # exit()
-    #wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_combined_mnist_7-8-2024, 10:18.pickle"
+    wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/ising_pruning/prune_dic_combined_ising_3-8-2024, 23:42.pickle"
     # wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_mod_combined_1-8-2024_min_43.pickle"
+    
+    def save_pruning_curves_modadd(modelfolder,pruning_percents,layers_pruned=['model.0','model.2'],epoch='last'):
+        
+        
+        def magnitude_prune_prod_mod_avg(run_object,pruning_percents=pruning_percents,layers_pruned=layers_pruned,epoch=epoch,by_layer=False):
+            
+            # def find_closest(lst, value):
+            #     return min(lst, key=lambda x: abs(x - value))
+            # asked_epoch=epoch
+            # epoch=find_closest(run_object.model_epochs(),epoch)
+            
+            
+
+            original_model, original_model_dic=load_model(run_object,epoch)
+            original_weights = save_original_weights(original_model, layers_pruned)
+            
+
+            original_model, original_model_dic=load_model(run_object,epoch)
+
+            #accuracies and losses for all layers
+            accs_losses_alllayers=iterative_prune_from_original_mod(run_object,original_model, original_weights, layers_pruned, pruning_percents,'all_layers',test_loader=run_object.test_loader,type='Mod')
+            #reset model
+            original_model, original_model_dic=load_model(run_object,epoch)
+            #accuracies and losses for individual layers
+            if by_layer:
+                accs_losses_bylayer=[iterative_prune_from_original_mod(run_object,original_model, original_weights, [i], pruning_percents,'local') for i in layers_pruned]
+                return (pruning_percents,accs_losses_alllayers,accs_losses_bylayer)
+            else:
+                return (pruning_percents,accs_losses_alllayers)
+        
+        runs=open_files_in_leaf_directories(modelfolder)
+
+        from collections import defaultdict
+        saved_dict = defaultdict(lambda: [[], [],[],[]])
+        for run in tqdm(runs):
+            if epoch=='last':
+                epoch=run.model_epochs()[-1]
+                print(f'epoch {epoch}')
+            else:
+                def find_closest(lst, value):
+                    return min(lst, key=lambda x: abs(x - value))
+                epoch=find_closest(run.model_epochs(),epoch)
+        
+            test_percents,test_accslosses=magnitude_prune_prod_mod_avg(run_object=run,epoch=epoch)
+            weight_multiplier=run.trainargs.weight_multiplier
+            weight_decay=run.trainargs.weight_decay
+            seed=run.trainargs.data_seed
+
+            saved_dict[(weight_multiplier,weight_decay)][0].append(test_percents)
+            saved_dict[(weight_multiplier,weight_decay)][1].append(np.array(test_accslosses[0]))
+            saved_dict[(weight_multiplier,weight_decay)][2].append(np.array(test_accslosses[1]))
+            saved_dict[(weight_multiplier,weight_decay)][3].append(seed)
+        for key in saved_dict.keys():
+            for i in range(len(saved_dict[key])-1):
+                saved_dict[key][i]=np.stack(saved_dict[key][i],axis=0)
+            saved_dict[key][i+1]=np.array(saved_dict[key][i+1])
+        
+        #can simply seed average by averaging over the 0th dimension
+        #then can order in terms of weight multiplier, and plot out the pruning curves.
+
+        # for key in saved_dict.keys():
+        #     saved_dict[key][0]=np.mean(saved_dict[key][0],axis=0)
+        #     saved_dict[key][1]=np.mean(saved_dict[key][1],axis=0)
+        #     saved_dict[key][2]=np.mean(saved_dict[key][2],axis=0)
+        
+        import datetime
+        #wd_cons='3e-4'
+        root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning"
+        filename=f'prune_dic_curves_modadd_all_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.dill'
+
+        filename=os.path.join(root_folder,filename)
+        with open(filename, 'wb') as handle:
+            dill.dump(saved_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        print(f'saved combined dic as {filename}')
+        
+        
+        return saved_dict
+    
+    sample_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/modadd_all_wd"
+    test=save_pruning_curves_modadd(sample_folder,epoch='last',pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'])
+    sample_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_sample_modadd_21-9-2024, 22:31.dill"
+    exit()
+    def plot_prune_curves_from_dict(prune_data_dic):
+        import plotly.colors as pc
+
+        with open(prune_data_dic, 'rb') as handle:
+            raw_data_dict = dill.load(handle)
+        for key in raw_data_dict.keys():
+            raw_data_dict[key][0]=np.mean(raw_data_dict[key][0],axis=0)
+            raw_data_dict[key][1]=np.mean(raw_data_dict[key][1],axis=0)
+            raw_data_dict[key][2]=np.mean(raw_data_dict[key][2],axis=0)
+        
+        unique_weight_decays=set([k[1] for k in raw_data_dict.keys()])
+        weight_decay_dicts={k:{} for k in unique_weight_decays}
+        for key in raw_data_dict.keys():
+            weight_decay_dicts[key[1]][key[0]]=raw_data_dict[key]
+        
+        #Really should only plot one weight decay but I guess I can plot them on neighbouring graphs
+        data_dic=dict(sorted(next(iter(weight_decay_dicts.values())).items()))
+        
+        
+        # print(f'weight decay dict keys {weight_decay_dicts.keys()}')
+        # print(f'first weight decay dict dict keys {next(iter(weight_decay_dicts.values())).keys()}')
+
+        # Create a color scale from red to very pale blue
+        num_lines=len(list(data_dic.keys()))
+        # colorscale = [
+        #     'rgb(255, 0, 0)',  # Red
+        #     'rgb(255, 153, 153)',  # Light red
+        #     'rgb(204, 204, 255)'  # Very pale blue
+        # ]
+
+        colorscale = [
+            'rgb(204, 204, 255)' , # Very pale blue
+            'rgb(255, 153, 153)',  # Light red
+            'rgb(255, 0, 0)'  # Red
+        ]
+
+        # Generate a set of colors for each line
+        colors = pc.sample_colorscale(colorscale, num_lines)
+        fig=make_subplots(rows=1,cols=1)
+        
+        count=0
+        for wm_key in data_dic.keys():
+            if wm_key>1:
+                pruning_percents=data_dic[wm_key][0]
+                acc_pruning=data_dic[wm_key][1]
+                loss_pruning=data_dic[wm_key][2]
+
+                fig.add_trace(go.Scatter(x=pruning_percents,y=acc_pruning,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}'),row=1,col=1)
+                count+=1
+        fig.update_xaxes(title_text='Pruned weights')
+        fig.update_yaxes(title_text='Accuracy',row=1,col=1)
+
+        return fig
+        
+    test=plot_prune_curves_from_dict(sample_saved_dic)               
+    test.show()
+    #print(f'keys')
+    #print(test.keys())
+    #print(f'first value')
+    #print([a.shape for a in next(iter(test.values()))])
+    exit()
     # plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
     # plot_loss.show()
     # plot_acc.show()
@@ -3995,8 +4088,10 @@ if __name__== "__main__":
     
     #magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
     
+
+
     #modadd_activations_heatmap(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
-    mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
+    #mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
     
     exit()
 
