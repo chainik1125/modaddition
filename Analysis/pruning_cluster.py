@@ -4,11 +4,11 @@ import os
 import sys
 import dill
 
-# Add the path to the PYTHONPATH
-new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
-if new_path not in sys.path:
-    sys.path.append(new_path)
-    os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
+# Add the path to the PYTHONPATH - this now goes in the slurm file
+# new_path = "/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/Code"
+# if new_path not in sys.path:
+#     sys.path.append(new_path)
+#     os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
 
 from dataclasses import dataclass
 from timeit import default_timer as timer
@@ -2405,23 +2405,19 @@ def open_files_in_leaf_directories(root_dir):
 
 
 def process_each_file_in_leaf_directories(run_func,root_dir):
-    total_files = sum([len(files) for _, _, files in os.walk(root_dir)])
-    #for dirpath, dirnames, filenames in os.walk(root_dir):
-    with tqdm(total=total_files, desc='Files processed', unit='file') as pbar:
-        for dirpath, dirnames, filenames in os.walk(root_dir):
+    for dirpath, dirnames, filenames in os.walk(root_dir):
         # Check if the current directory is a leaf directory
-            if not dirnames:
-                for filename in filenames:
-                    file_path = os.path.join(dirpath, filename)
-                    try:
-                        with open(file_path, 'rb') as in_strm:
-                                single_run = torch.load(in_strm,map_location=device)
-                                                # Do something with the content if needed
-                                run_func(single_run)
-                        #print(f'file opened')
-                    except Exception as e:
-                        print(f"Failed to open {file_path}: {e}")
-                    pbar.update(1)
+        if not dirnames:
+            for filename in tqdm(filenames,desc='Files processed',leave=True):
+                file_path = os.path.join(dirpath, filename)
+                try:
+                    with open(file_path, 'rb') as in_strm:
+                            single_run = torch.load(in_strm,map_location=device)
+                                            # Do something with the content if needed
+                            run_func(single_run)
+                    #print(f'file opened')
+                except Exception as e:
+                    print(f"Failed to open {file_path}: {e}")
     return None
 
 
@@ -4026,9 +4022,9 @@ if __name__== "__main__":
         #     saved_dict[key][2]=np.mean(saved_dict[key][2],axis=0)
         
         import datetime
-        wd_cons='3e-5'
+        #wd_cons='3e-4'
         root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning"
-        filename=f'prune_dic_curves_modadd_wd_{wd_cons}_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.dill'
+        filename=f'prune_dic_curves_modadd_all_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.dill'
 
         filename=os.path.join(root_folder,filename)
         with open(filename, 'wb') as handle:
@@ -4039,10 +4035,12 @@ if __name__== "__main__":
         
         return saved_dict
     
-    #sample_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/modadd_all_wd/modaddwd_3e-5"
-    #test=save_pruning_curves_modadd(sample_folder,epoch='last',pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'])
-    sample_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_curves_modadd_wd_3e-5_22-9-2024, 13:38.dill"
-    
+    model_cluster_folder=sys.argv[2]
+
+
+    test=save_pruning_curves_modadd(model_cluster_folder,epoch='last',pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'])
+    sample_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_sample_modadd_21-9-2024, 22:31.dill"
+    exit()
 
     def plot_prune_curves_from_dict(prune_data_dic):
         import plotly.colors as pc
@@ -4066,65 +4064,40 @@ if __name__== "__main__":
         # print(f'weight decay dict keys {weight_decay_dicts.keys()}')
         # print(f'first weight decay dict dict keys {next(iter(weight_decay_dicts.values())).keys()}')
 
+        # Create a color scale from red to very pale blue
+        num_lines=len(list(data_dic.keys()))
+        # colorscale = [
+        #     'rgb(255, 0, 0)',  # Red
+        #     'rgb(255, 153, 153)',  # Light red
+        #     'rgb(204, 204, 255)'  # Very pale blue
+        # ]
 
+        colorscale = [
+            'rgb(204, 204, 255)' , # Very pale blue
+            'rgb(255, 153, 153)',  # Light red
+            'rgb(255, 0, 0)'  # Red
+        ]
+
+        # Generate a set of colors for each line
+        colors = pc.sample_colorscale(colorscale, num_lines)
+        fig=make_subplots(rows=1,cols=1)
         
-        def single_metric_curves(acc_loss):
-            if acc_loss=="Accuracy":
-                indices=[1]
-                yaxis_labels=['Accuracy']
-            elif acc_loss=="Loss":
-                indices=[2]
-                yaxis_labels=['Loss']
-            elif acc_loss=="Both":
-                indices=[1,2]
-                yaxis_labels=['Accuracy','Loss']
+        count=0
+        for wm_key in data_dic.keys():
+            if wm_key>1:
+                pruning_percents=data_dic[wm_key][0]
+                acc_pruning=data_dic[wm_key][1]
+                loss_pruning=data_dic[wm_key][2]
 
+                fig.add_trace(go.Scatter(x=pruning_percents,y=acc_pruning,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}'),row=1,col=1)
+                count+=1
+        fig.update_xaxes(title_text='Pruned weights')
+        fig.update_yaxes(title_text='Accuracy',row=1,col=1)
 
-            fig=make_subplots(rows=len(indices),cols=1)
-
-            # Create a color scale from red to very pale blue
-            num_lines=len(list(data_dic.keys()))
-            # colorscale = [
-            #     'rgb(255, 0, 0)',  # Red
-            #     'rgb(255, 153, 153)',  # Light red
-            #     'rgb(204, 204, 255)'  # Very pale blue
-            # ]
-
-            colorscale = [
-                'rgb(0, 0, 255)' , # Blue
-                'rgb(153, 153, 255)',  # light blue
-                'rgb(204, 204,255 )'  # very pale blue - start of grokking regime
-            ]
-
-            # Generate a set of colors for each line
-            
-            num_lines=len([k for k in data_dic.keys() if k<=1])
-            colors = pc.sample_colorscale(colorscale, num_lines)
-            
-            showleg=True
-            for index in indices:
-                yaxis_label=yaxis_labels[index-1]
-                count=0
-                for wm_key in data_dic.keys():
-                    if wm_key<=1:
-                        pruning_percents=data_dic[wm_key][0]
-                        #acc_pruning=data_dic[wm_key][1]
-                        #loss_pruning=data_dic[wm_key][2]
-                        pruning_data=data_dic[wm_key][index]
-                        fig.add_trace(go.Scatter(x=pruning_percents,y=pruning_data,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}',showlegend=showleg),row=index,col=1)
-                        count+=1
-                showleg=False
-                fig.update_xaxes(title_text='Pruned weights',range=[0.5,1])
-                fig.update_yaxes(title_text=f'{yaxis_label}',row=1,col=index)
-            fig.update_layout(title_text=f"Pruning improves with lower weight multiplier in the learning regime")
-            
-            fig.show()
-            return None
-        
-        single_metric_curves("Both")
+        return fig
         
     test=plot_prune_curves_from_dict(sample_saved_dic)               
-    
+    test.show()
     #print(f'keys')
     #print(test.keys())
     #print(f'first value')
