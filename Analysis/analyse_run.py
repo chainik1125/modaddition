@@ -136,21 +136,23 @@ destination_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/mnistcl
 
 #Linear plots
 nongrok_foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/linear/hiddenlayer_[512]_desc_modadd_wm_17.0"
-foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test_runs/linear/hiddenlayer_[512]_desc_modadd_wm_0.11"
+foldername="/Users/dmitrymanning-coe/Documents/Research/Grokking/IsingCluster/copy_Ising_varynorm_wd_0.1/hiddenlayer_[100]_desc_avgIsingstandard_fixedwm_20.0_wm_20.0"
 
 
 grok_object=open_files_in_leaf_directories(foldername)[0]
 
 nongrok_object=open_files_in_leaf_directories(nongrok_foldername)[0]
 
-# print(f'trainargs grok: {vars(grok_object.trainargs)}')
+print(f'trainargs grok: {vars(grok_object.trainargs)}')
+grok_object.traincurves_and_iprs(grok_object).show()
+exit()
 # print(f'trainargs nongrok: {vars(nongrok_object.trainargs)}')
 
 
 #grok_object.linear_decomposition_plot(nongrok_object).show()
-#grok_object.traincurves_and_iprs(nongrok_object).show()
+grok_object.traincurves_and_iprs(nongrok_object).show()
 #grok_object.cosine_sim(nongrok_object).show()
-
+exit()
 #methods = [func for func in dir(nongrok_object) if callable(getattr(nongrok_object, func)) and not func.startswith("__")]
 
 #grok_object.linear_decomposition_plot(nongrok_object).show()

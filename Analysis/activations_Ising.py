@@ -1256,10 +1256,33 @@ def save_original_weights(model, layers_to_prune):
     Returns:
     - original_weights: dict, keys are layer names and values are weights
     """
+
     original_weights = {}
-    for name, module in model.named_modules():
-        if name in layers_to_prune:
-            original_weights[name] = copy.deepcopy(module.weight.data)
+    # testmod=model.fc_layers[0].weight.shape
+    # testmod=model.conv_layers[0].weight.
+    # print(testmod)
+    
+    
+
+    
+    #for name, module in model.named_modules():
+        #if isinstance(module, (nn.Conv2d, nn.Linear)):
+            # Adjust name to include full path for clarity, especially useful for layers within ModuleList
+            #full_name = f'{name} ({module.__class__.__name__})'
+
+    for layer_name in layers_to_prune:
+        module_dict=dict(model.named_modules())
+        weight=copy.deepcopy(module_dict[layer_name].weight.data)
+        original_weights[layer_name] = weight
+    # for name, module in model.named_modules():
+    #     full_name = f'{name} ({module.__class__.__name__})'
+    #     print(full_name)
+    
+    # if full_name in layers_to_prune:
+    #     if isinstance(module, (nn.Conv2d, nn.Linear)):
+    #         print(f'full name {full_name}')
+    #         exit()
+    #         original_weights[name] = copy.deepcopy(module.weight.data)
     return original_weights
 
 def reset_to_original_weights(model, original_weights):
@@ -1270,9 +1293,12 @@ def reset_to_original_weights(model, original_weights):
     - model: a PyTorch model
     - original_weights: dict, original weights to reset to
     """
-    for name, module in model.named_modules():
-        if name in original_weights:
-            module.weight.data = original_weights[name].clone()
+    # for name, module in model.named_modules():
+    #     if name in original_weights:
+    #         module.weight.data = original_weights[name].clone()
+
+    for layer_name in original_weights:
+        dict(model.named_modules())[layer_name].weight.data=original_weights[layer_name].clone()
 def iterative_prune_from_original(model, original_weights, layers_to_prune, pruning_percents,pruning_type):
     """
     Iteratively prunes the model from the original weights and evaluates accuracy after each level of pruning.
@@ -1290,15 +1316,16 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
     accuracies = []
     losses=[]
     parameters_to_prune=[]
-    for _, module in model.named_modules():
-        if isinstance(module, nn.Linear) or isinstance(module,nn.Conv2d):
-            print(module)
-            # if isinstance(module,nn.Linear):
-            #     if module.in_features==100 and module.out_features==2:
-            #         continue
-            parameters_to_prune.append((module,'weight'))
-    
+
+    # for _, module in model.named_modules():
+    #     if isinstance(module, nn.Linear) or isinstance(module,nn.Conv2d):
+    #         # if isinstance(module,nn.Linear):
+    #         #     if module.in_features==100 and module.out_features==2:
+    #         #         continue
+    #         parameters_to_prune.append((module,'weight'))
+
     #parameters_to_prune=[('conv_layers.0.weight','weight'),('conv_layers.3.weight','weight'),('fc_layers.0.weight','weight')]
+    
     for percent in tqdm(pruning_percents,position=1,leave=False,disable=True):
         reset_to_original_weights(model, original_weights)
         if pruning_type=='local':
@@ -1306,6 +1333,7 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
                 module = dict(model.named_modules())[layer_name]
                 prune.l1_unstructured(module, name='weight', amount=percent)
                 prune.remove(module, 'weight')
+
         elif pruning_type=='global':
                 prune.global_unstructured(
                 parameters_to_prune,
@@ -1317,6 +1345,7 @@ def iterative_prune_from_original(model, original_weights, layers_to_prune, prun
                 prune.l1_unstructured(module, name='weight', amount=percent)
                 prune.remove(module, 'weight')
 
+        
         accuracy,loss = acc_loss_test(model)  # Assuming acc_los is defined elsewhere
         accuracies.append(accuracy)
         losses.append(loss.item())
@@ -2652,6 +2681,7 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
         
         # Find max and std for each PxP slice
         max_values, _ = torch.max(tensor.reshape(-1, d), dim=0)
+                
         #std_values = torch.std(tensor.reshape(-1, d), dim=0)
         std_values=times_range*(max_values-torch.min(tensor.reshape(-1,d),dim=0).values)
         
@@ -2664,11 +2694,12 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
         # # Set count to zero where max doesn't exceed the threshold
         # counts = torch.where(max_values > threshold, counts, torch.zeros_like(counts))
 
-            # Count True values in each slice
+        # Count True values in each slice
         counts = torch.sum(mask, dim=(0, 1)).float()  # Convert to float
         
         # Set count to NaN where max doesn't exceed the threshold
         counts = torch.where(max_values > threshold, counts, torch.full_like(counts, float('nan')))
+        
         
         
         #Want to do this later so that the frequencies are together when they get naned out when I combine the sin and cos
@@ -2689,6 +2720,7 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
         f_counts=count_within_std(f_layer,threshold=threshold)
         comp_counts=count_within_std(comp_layer,threshold=threshold)
 
+       
 
 
         f_max_neuron=torch.max(f_layer.pow(2).sum(dim=(0,1)).pow(1/2),dim=0)[1]
@@ -2730,16 +2762,16 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
 
             return (mean_series_f,mean_series_comp),(max_series_f,max_series_comp)
         
-
+        #Note that for sparse significant frequencies they won't align on averaging!
         grok_means,grok_maxes=collect_results(grokruns)
+
+
         nongrok_means,nongrok_maxes=collect_results(nongrokruns)
     
         return grok_means,grok_maxes,nongrok_means,nongrok_maxes
 
     
     grok_counts,grok_maxes,nongrok_counts,nongrok_maxes=average_final_series_weights(grokfolder,nongrokfolder)
-
-
     
 
     
@@ -2749,8 +2781,11 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
     grok_combined_cos_sin_counts=grok_counts[0]
 
     grok_combined_cos_sin_counts=remove_nans(grok_combined_cos_sin_counts)
-    grok_comp_counts=remove_nans(grok_counts[1])    
 
+    
+    grok_comp_counts=remove_nans(grok_counts[1])    
+    
+    
 
     nongrok_combined_maxes_cos_sin = nongrok_maxes[0].flatten()
     nongrok_comp_maxes=nongrok_maxes[1].flatten()
@@ -2758,7 +2793,6 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
     nongrok_combined_cos_sin_counts=nongrok_counts[0]
     nongrok_combined_cos_sin_counts=remove_nans(nongrok_combined_cos_sin_counts)
     nongrok_comp_counts=remove_nans(nongrok_counts[1])
-
 
 
 
@@ -2779,6 +2813,8 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
     fig.update_yaxes(title_text='Activation',range=[0,comp_single_max],col=2)
     fig.update_xaxes(title_text='Frequency index',col=1)
     fig.update_xaxes(title_text='Frequency index',col=2)
+
+    #commenting this out because in the very compressed models the seed averaging sinks the counts because the nans don't align for the different seeds
 
     counts_max = max(grok_combined_cos_sin_counts.max().item(),grok_comp_counts.max().item(), nongrok_combined_cos_sin_counts.max().item(),nongrok_comp_counts.max().item())
     
@@ -2854,8 +2890,8 @@ if __name__== "__main__":
     #data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/clusterdata4/grok_False_time_1715457544_hiddenlayer_[100]/data_seed_0_time_1715459206_train_500_wd_0.05_lr1e-05"
     
     #mod add exception
-    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_10.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_10.0_time_1719661186"
-    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/oppositetest/hiddenlayer_[512]_desc_opp_modadd_wm_1.0/grok_Falsedataseed_0_sgdseed_0_initseed_0_wd_3e-05_wm_1.0_time_1719658785"
+    data_object_file_name="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_10.0/grok_Falsedataseed_2_sgdseed_2_initseed_2_wd_0.0003_wm_10.0_time_1721762970"
+    data_object_file_name_ng="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_0.5/grok_Falsedataseed_2_sgdseed_2_initseed_2_wd_0.0003_wm_0.5_time_1721761777"
 
 
     dataset_filename="/Users/dmitrymanning-coe/Documents/Research/Grokking/old_ising_code/Data/IsingML_L16_traintest.pickle"
@@ -3915,20 +3951,27 @@ if __name__== "__main__":
         else:
             return (pruning_percents,accs_losses_alllayers)
     
+
     def magnitude_prune_ising_curves(run_object,pruning_percents,layers_pruned,epoch,by_layer=True):
         def find_closest(lst, value):
             return min(lst, key=lambda x: abs(x - value))
 
+
         epoch=find_closest(run_object.model_epochs(),epoch)
         
-        original_model, original_model_dic=load_model(run_object,epoch)
-        original_weights = save_original_weights(original_model, layers_pruned)
         
+        original_model, original_model_dic=load_model(run_object,epoch)
+
+        original_weights = save_original_weights(original_model, layers_pruned)
+
 
         original_model, original_model_dic=load_model(run_object,epoch)
 
         #accuracies and losses for all layers
+        
+        
         accs_losses_alllayers=iterative_prune_from_original(original_model, original_weights, layers_pruned, pruning_percents,'all_layers')
+        
         #reset model
         original_model, original_model_dic=load_model(run_object,epoch)
         #accuracies and losses for individual layers
@@ -3981,8 +4024,7 @@ if __name__== "__main__":
     wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/ising_pruning/prune_dic_combined_ising_3-8-2024, 23:42.pickle"
     # wm_dic_path="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_mod_combined_1-8-2024_min_43.pickle"
     
-    def save_pruning_curves_modadd(modelfolder,pruning_percents,layers_pruned=['model.0','model.2'],epoch='last'):
-        
+    def save_pruning_curves(modelfolder,pruning_percents,layers_pruned=['model.0','model.2'],epoch='last',by_layer=False,problem="Ising"):
         
         def magnitude_prune_prod_mod_avg(run_object,pruning_percents=pruning_percents,layers_pruned=layers_pruned,epoch=epoch,by_layer=False):
             
@@ -4012,7 +4054,10 @@ if __name__== "__main__":
         
         from collections import defaultdict
 
-        saved_dict = defaultdict(lambda: [[], [],[],[]])
+        if by_layer:
+            saved_dict = defaultdict(lambda: [[], [],[],[],[],[]])
+        else:
+            saved_dict = defaultdict(lambda: [[], [],[],[]])
 
         def process_run(run,epoch=epoch):
             if epoch=='last':
@@ -4022,16 +4067,38 @@ if __name__== "__main__":
                 def find_closest(lst, value):
                     return min(lst, key=lambda x: abs(x - value))
                 epoch=find_closest(run.model_epochs(),epoch)
-        
-            test_percents,test_accslosses=magnitude_prune_prod_mod_avg(run_object=run,epoch=epoch)
+
+            ising_layer_names=['conv_layers.0','conv_layers.3','fc_layers.0']
+            mod_layer_names=['model.0','model.2']
+
+            if problem=="Ising":
+                results=magnitude_prune_ising_curves(run_object=run,pruning_percents=pruning_percents,epoch=epoch,by_layer=by_layer,layers_pruned=ising_layer_names)
+            elif problem=="Mod":
+                results=magnitude_prune_prod_mod_avg(run_object=run,pruning_percents=pruning_percents,epoch=epoch,by_layer=by_layer,layers_pruned=mod_layer_names)
+            test_percents=results[0]
+            test_accslosses=results[1]
+            if len(results)==3:
+                test_accslosses_bylayer=results[2]
+            
+            
             weight_multiplier=run.trainargs.weight_multiplier
             weight_decay=run.trainargs.weight_decay
             seed=run.trainargs.data_seed
-
+            
             saved_dict[(weight_multiplier,weight_decay)][0].append(test_percents)
             saved_dict[(weight_multiplier,weight_decay)][1].append(np.array(test_accslosses[0]))
             saved_dict[(weight_multiplier,weight_decay)][2].append(np.array(test_accslosses[1]))
-            saved_dict[(weight_multiplier,weight_decay)][3].append(seed)
+            if len(results)==3:
+
+                print(f'test_accslosses_bylayer {test_accslosses_bylayer}')
+                print(f'test_accslosses_bylayer array {np.array(test_accslosses_bylayer).shape}')
+                saved_dict[(weight_multiplier,weight_decay)][3].append(np.array(test_accslosses_bylayer)[:,0,:])
+                saved_dict[(weight_multiplier,weight_decay)][4].append(np.array(test_accslosses_bylayer)[:,1,:])
+                saved_dict[(weight_multiplier,weight_decay)][5].append(seed)
+            else:
+                saved_dict[(weight_multiplier,weight_decay)][3].append(seed)
+            
+            
 
         process_each_file_in_leaf_directories(process_run,modelfolder)
 
@@ -4043,9 +4110,14 @@ if __name__== "__main__":
         #can simply seed average by averaging over the 0th dimension
         
         import datetime
-        wd_cons='3e-5'
-        root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning"
-        filename=f'prune_dic_curves_modadd_wd_{wd_cons}_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.dill'
+        if problem=="Ising":
+            wd_cons='1e-2'
+            root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_curves"
+            filename=f'prune_dic_curves_ising_wd_{wd_cons}_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.dill'
+        elif problem=="Mod":
+            wd_cons='3e-4'
+            root_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_curves"
+            filename=f'prune_dic_curves_mod_wd_{wd_cons}_{datetime.date.today().day}-{datetime.date.today().month}-{datetime.datetime.now().year}, {datetime.datetime.now().hour}:{datetime.datetime.now().minute}.dill'
 
         filename=os.path.join(root_folder,filename)
         with open(filename, 'wb') as handle:
@@ -4056,10 +4128,10 @@ if __name__== "__main__":
         
         return saved_dict
     
-    #sample_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/modadd_all_wd/modaddwd_3e-5"
-    #save_modadd_prune_dic=save_pruning_curves_modadd(sample_folder,epoch='last',pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'])
-    sample_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_curves_modadd_wd_3e-5_22-9-2024, 13:38.dill"
-    
+    #Ising pruning
+    #ising_model_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/IsingCluster/copy_Ising_varynorm_wd_0.01"
+    #save_ising_prune_dic=save_pruning_curves(ising_model_folder,epoch='last',pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],by_layer=True)
+    #exit()
 
     def plot_prune_curves_from_dict(prune_data_dic):
         import plotly.colors as pc
@@ -4078,6 +4150,7 @@ if __name__== "__main__":
         
         
         #Really should only plot one weight decay but I guess I can plot them on neighbouring graphs
+
         data_dic=dict(sorted(next(iter(weight_decay_dicts.values())).items()))
 
         def learn_grok_plot(grok_split_wm=2):
@@ -4154,7 +4227,7 @@ if __name__== "__main__":
 
             # Generate a set of colors for each line
             
-            num_lines=len([k for k in data_dic.keys() if k<=1])
+            num_lines=len([k for k in data_dic.keys() if k>0])
             colors = pc.sample_colorscale(colorscale, num_lines)
             
             showleg=True
@@ -4162,12 +4235,12 @@ if __name__== "__main__":
                 yaxis_label=yaxis_labels[index-1]
                 count=0
                 for wm_key in data_dic.keys():
-                    if wm_key<=1:
+                    if wm_key>0:
                         pruning_percents=data_dic[wm_key][0]
                         #acc_pruning=data_dic[wm_key][1]
                         #loss_pruning=data_dic[wm_key][2]
                         pruning_data=data_dic[wm_key][index]
-                        fig.add_trace(go.Scatter(x=pruning_percents,y=pruning_data,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}',showlegend=showleg),row=1,col=2)
+                        fig.add_trace(go.Scatter(x=pruning_percents,y=pruning_data,mode='lines',line=dict(color=colors[count], width=2), name=f'wm {wm_key}',showlegend=showleg),row=index,col=1)
                         count+=1
                 showleg=False
                 fig.update_xaxes(title_text='Pruned weights',range=[0.5,1])
@@ -4177,16 +4250,118 @@ if __name__== "__main__":
             fig.show()
             return None
         
-        #single_metric_curves("Both")
-        learn_grok_plot().show()
+        single_metric_curves("Both")
+        #learn_grok_plot().show()
+
+    
+
+    def plot_ising_prune_curves_from_dict(prune_data_dic):
+        import plotly.colors as pc
+
+        with open(prune_data_dic, 'rb') as handle:
+            raw_data_dict = dill.load(handle)
+        for key in raw_data_dict.keys():
+            for i in range(len(raw_data_dict[key])):
+                if type(raw_data_dict[key][i])==np.ndarray:
+                    raw_data_dict[key][i]=np.mean(raw_data_dict[key][i],axis=0)
+            # raw_data_dict[key][0]=np.mean(raw_data_dict[key][0],axis=0)
+            # raw_data_dict[key][1]=np.mean(raw_data_dict[key][1],axis=0)
+            # raw_data_dict[key][2]=np.mean(raw_data_dict[key][2],axis=0)
         
-    test=plot_modadd_prune_curves_from_dict(sample_saved_dic)               
+
+        unique_weight_decays=set([k[1] for k in raw_data_dict.keys()])
+        weight_decay_dicts={k:{} for k in unique_weight_decays}
+        for key in raw_data_dict.keys():
+            weight_decay_dicts[key[1]][key[0]]=raw_data_dict[key]
+        
+        
+        #Really should only plot one weight decay but I guess I can plot them on neighbouring graphs
+        data_dic=dict(sorted(next(iter(weight_decay_dicts.values())).items()))
+        data_dic = {key: value for key, value in data_dic.items() if key <= 10}
+        data_dic = {key: value for key, value in data_dic.items() if key >= 0.92}
+
+
+        def learn_grok_plot(grok_split_wm=2):
+            fig=make_subplots(rows=2,cols=2,
+            subplot_titles=['Full network','CNN 1','CNN 2','FC',
+            'Grok -full layer','Grok - CNN 1','Grok - CNN 2','Grok - FC'])
+            
+            def set_color_scale(num_grok_lines,num_learn_lines):
+                learn_colorscale=['rgb(0, 0, 255)' ,#Blue
+                                    'rgb(153, 153, 255)',#light blue
+                                    'rgb(204, 204,255 )']#Very pale blue
+                grok_colorscale=['rgb(204, 204, 255)',
+                                    'rgb(255, 153, 153)',
+                                    'rgb(255, 0, 0)']
+                
+                grok_colors=pc.sample_colorscale(grok_colorscale, num_grok_lines)
+                learn_colors=pc.sample_colorscale(learn_colorscale, num_learn_lines)
+
+                return grok_colors,learn_colors
+
+            num_grok_lines=len([k for k in data_dic.keys()])
+            num_learn_lines=len([k for k in data_dic.keys() if k<=grok_split_wm])
+
+            grok_colors,learn_colors=set_color_scale(num_grok_lines,num_learn_lines)
+            
+            grok_count=0
+            learn_count=0
+            for wm_key in data_dic.keys():
+                pruning_percents=data_dic[wm_key][0]
+                acc_pruning=data_dic[wm_key][1]
+                loss_pruning=data_dic[wm_key][2]
+                acc_by_layer=data_dic[wm_key][3]
+
+                if True:# wm_key>grok_split_wm:
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_pruning,mode='lines',line=dict(color=grok_colors[grok_count], width=2), name=f'wm {wm_key}',showlegend=True),row=1,col=1)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_by_layer[0],mode='lines',line=dict(color=grok_colors[grok_count], width=2), name=f'wm {wm_key}',showlegend=False),row=1,col=2)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_by_layer[1],mode='lines',line=dict(color=grok_colors[grok_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=1)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_by_layer[2],mode='lines',line=dict(color=grok_colors[grok_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=2)
+                    grok_count+=1
+                else:
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_pruning,mode='lines',line=dict(color=learn_colors[learn_count], width=2), name=f'wm {wm_key}',showlegend=True),row=2,col=1)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_by_layer[0],mode='lines',line=dict(color=learn_colors[learn_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=2)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_by_layer[1],mode='lines',line=dict(color=learn_colors[learn_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=3)
+                    fig.add_trace(go.Scatter(x=pruning_percents,y=acc_by_layer[2],mode='lines',line=dict(color=learn_colors[learn_count], width=2), name=f'wm {wm_key}',showlegend=False),row=2,col=4)
+                    learn_count+=1
+                
+            fig.update_xaxes(title_text='Share of weights pruned ',range=[0.3,1])
+            fig.update_yaxes(title_text='Accuracy')
+            #fig.update_yaxes(title_text='Loss',row=2)
+            fig.update_layout(title_text=f"Pruning advantage for Ising (wd=0.01)")
+            
+            return fig
+        
+        grok_fig=learn_grok_plot()
+
+        return grok_fig
+    
+
+
+    #Modadd Pruning
+    
+    #mod_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_sample_modadd_21-9-2024, 22:31.dill"
+    #save_modadd_prune_dic=save_pruning_curves(mod_saved_dic,epoch='last',pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],by_layer=True)
+    #sample_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_dic_curves_modadd_wd_3e-5_22-9-2024, 13:38.dill"
+    ###############################################
+    #Mod pruning curve plots
+    #mod_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/prune_dic_sample_modadd_21-9-2024, 22:31.dill"
+    #plot_prune_curves_from_dict(mod_saved_dic).show()
+    #Ising pruning curve
+    #ising_saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/ising_pruning/prune_curves/prune_dic_curves_ising_wd_1e-2_23-9-2024, 10:5.dill"
+    #test=plot_ising_prune_curves_from_dict(ising_saved_dic).show()
+
+    #pruning area curves
+    # prune_area_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mnist_pruning/prune_dic_combined_mnist_7-8-2024, 10:18.pickle"
+    # area,loss=plot_dec_areas_saved(saved_dic_path=prune_area_dic,rescale=False)
+    # area.show()
+    # loss.show()
     
     #print(f'keys')
     #print(test.keys())
     #print(f'first value')
     #print([a.shape for a in next(iter(test.values()))])
-    exit()
+    
     # plot_loss,plot_acc=plot_dec_areas_saved(saved_dic_path=wm_dic_path,rescale=False)
     # plot_loss.show()
     # plot_acc.show()
@@ -4198,9 +4373,24 @@ if __name__== "__main__":
     #magnitude_prune_prod_mod(grokked_object=single_run,non_grokked_object=single_run_ng,pruning_percents=np.linspace(0,1,100),layers_pruned=['model.0','model.2'],fig=None,epoch=epoch).show()
     
 
+    #Fourier activations analysis
+    nongrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_0.5"
+    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_10.0"
+    # overall_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample"
+    grok_object=open_files_in_leaf_directories(grok_foldername_seedaverage)[0]
+    print(f'grok object trainargs {grok_object.trainargs}')
+    # #grok_object.traincurves_and_iprs(grok_object).show()
+    nongrok_object=open_files_in_leaf_directories(nongrok_foldername_seedaverage)[0]
+    # print(f'non grok object trainargs {nongrok_object.trainargs}')
+    # exit()
 
-    #modadd_activations_heatmap(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
-    #mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nogrok_foldername_seedaverage).show()
+    # save_dic=save_pruning_curves(modelfolder=overall_folder,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch='last',by_layer=False,problem="Mod")
+    saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_curves/prune_dic_curves_mod_wd_3e-4_23-9-2024, 10:55.dill"
+    plot_prune_curves_from_dict(saved_dic)
+    
+    
+    #modadd_activations_heatmap(grokfolder=grok_foldername_seedaverage,nongrokfolder=nongrok_foldername_seedaverage).show()
+    #mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nongrok_foldername_seedaverage).show()
     
     exit()
 
