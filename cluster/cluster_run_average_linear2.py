@@ -250,38 +250,9 @@ def calculate_weight_norm(model,n):
 		weight_norm=torch.sum(flat_weights**n)
 		return weight_norm
 
-def calculate_cosine_similarity(model1,model2,weight_keys=None):
-	cosine_tensor_list=[]
-	names_list=[]
-	with torch.no_grad():
-		def prep_models(model):
-			list_of_weights=[]
-			list_of_names=[]
-			for name, param in model.named_parameters():
-				if param.requires_grad and len(param.shape)>1:
-					list_of_weights.append(param)
-					list_of_names.append(name)
-			
-			flat_weights=torch.cat([(torch.flatten(p)) for p in list_of_weights])
 
-			return list_of_weights,flat_weights,list_of_names
-		
-		list_of_weights_1,flattened_weights_1,weight_keys_1=prep_models(model1)
-		list_of_weights_2,flattened_weights_2,weight_keys_2=prep_models(model2)
-		
 
-		flattened_cosine=nn.CosineSimilarity(dim=0,eps=1e-6)(flattened_weights_1,flattened_weights_2)
-		cosine_tensor_list.append(flattened_cosine.item())
-		names_list.append('all model weights flattened')
-		if weight_keys!=None:
-			for weight_key in weight_keys:
-				index=weight_keys_1.index(weight_key)
-				cosine=nn.CosineSimilarity(dim=-1,eps=1e-6)(torch.flatten(list_of_weights_1[index]),torch.flatten(list_of_weights_2[index]))
-				cosine_tensor_list.append(cosine.item())
-				names_list.append(weight_key)
-		cosine_tensor=torch.Tensor(cosine_tensor_list)
-		
-		return cosine_tensor,names_list
+
 
 
 def linear_decomposition(model,criterion,data_loader):
@@ -1112,7 +1083,7 @@ if __name__ == '__main__':
 	# set functions for neural network
 	loss_criterion="CrossEntropy" # 'MSE' or 'CrossEntropy'
 	loss_fn = nn.CrossEntropyLoss   # 'MSELoss' or 'CrossEntropyLoss'
-	optimizer_fn = torch.optim.Adam     # 'Adam' or 'AdamW' or 'SGD'
+	optimizer_fn = torch.optim.AdamW     # 'Adam' or 'AdamW' or 'SGD'
 	activation = nn.ReLU    # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
 	# set parameters for neural network
@@ -1307,7 +1278,7 @@ if __name__ == '__main__':
 					for j in range(layers):
 						fig.add_trace(go.Scatter(x=np.arange(0,len(saved_object.weight_samples[:,j,i])),y=saved_object.weight_samples[:,j,i],mode='lines',line=dict(color=colors[i], width=2),showlegend=False),row=1,col=1)
 						#fig.add_trace(go.Scatter(x=np.arange(0,len(saved_object.weight_samples[:,j,i])),y=saved_object.weight_samples[:,j,i],mode='lines',line=dict(color=colors[i], width=2),showlegend=False),row=2,col=1+j)
-				        #fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_accuracies))),y=non_grokked_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learning train}$'),row=1,col=2)
+						#fig.add_trace(go.Scatter(x=list(range(len(non_grokked_object.test_accuracies))),y=non_grokked_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Learning train}$'),row=1,col=2)
 				fig.add_trace(go.Scatter(x=list(range(len(saved_object.test_accuracies))),y=saved_object.test_accuracies,mode='lines',line=dict(color='blue',dash='solid'),showlegend=True,name=r'$\text{Test}$'),row=2,col=1)
 				fig.add_trace(go.Scatter(x=list(range(len(saved_object.train_accuracies))),y=saved_object.train_accuracies,mode='lines',line=dict(color='blue',dash='dash'),showlegend=True,name=r'$\text{Train}$'),row=2,col=1)
 				fig.update_yaxes(title_text="Accuracy", row=2, col=1)

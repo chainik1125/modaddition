@@ -2487,8 +2487,10 @@ def mod_add_fourier_activations_dict(runobject):
         #interleaved_tensor=torch.cat((tensor1_cut,tensor1_cut,interleaved_tensor),dim=1)
         
         #Only consider first half:
-        interleaved_tensor=interleaved_tensor[:,:2*P]
-        
+        #interleaved_tensor=interleaved_tensor[:,:2*P]
+        interleaved_tensor=torch.cat((interleaved_tensor[:,:P],interleaved_tensor[:,3*P:4*P]),dim=1)
+        #print(f'interleaved_tensor shape {interleaved_tensor.shape}')
+        #exit()
         return interleaved_tensor
 
     
@@ -2681,6 +2683,12 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
         
         # Find max and std for each PxP slice
         max_values, _ = torch.max(tensor.reshape(-1, d), dim=0)
+        
+        #max_values = torch.topk(tensor.reshape(-1, d), dim=0,k=10)[0][-1]
+        
+        
+
+        
                 
         #std_values = torch.std(tensor.reshape(-1, d), dim=0)
         std_values=times_range*(max_values-torch.min(tensor.reshape(-1,d),dim=0).values)
@@ -2797,7 +2805,7 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
 
 
 
-    fig=make_subplots(rows=2,cols=3,
+    fig=make_subplots(rows=2,cols=2,
     subplot_titles=['Single neuron - fourier','Single neuron - computational','Significant inputs - fourier and computational',
     'Significant inputs - fourier','Significant inputs - computational','Significant inputs - fourier and computational'],
     horizontal_spacing=0.08)
@@ -2816,23 +2824,23 @@ def mod_add_activations_weights(grokfolder,nongrokfolder,layer='model.1 (ReLU)',
 
     #commenting this out because in the very compressed models the seed averaging sinks the counts because the nans don't align for the different seeds
 
-    counts_max = max(grok_combined_cos_sin_counts.max().item(),grok_comp_counts.max().item(), nongrok_combined_cos_sin_counts.max().item(),nongrok_comp_counts.max().item())
+    # counts_max = max(grok_combined_cos_sin_counts.max().item(),grok_comp_counts.max().item(), nongrok_combined_cos_sin_counts.max().item(),nongrok_comp_counts.max().item())
     
 
-    fig.add_trace(go.Scatter(x=np.arange(grok_combined_cos_sin_counts.shape[0]),y=grok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - grok',line=dict(color='red'),showlegend=False),row=1,col=3)
-    fig.add_trace(go.Scatter(x=np.arange(grok_comp_counts.shape[0]),y=grok_comp_counts.detach().numpy(),name='Significant computational basis activations - grok',line=dict(color='black'),showlegend=False),row=1,col=3)
+    # fig.add_trace(go.Scatter(x=np.arange(grok_combined_cos_sin_counts.shape[0]),y=grok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - grok',line=dict(color='red'),showlegend=False),row=1,col=3)
+    # fig.add_trace(go.Scatter(x=np.arange(grok_comp_counts.shape[0]),y=grok_comp_counts.detach().numpy(),name='Significant computational basis activations - grok',line=dict(color='black'),showlegend=False),row=1,col=3)
     
-    fig.update_yaxes(title_text='Number of frequencies',range=[0,counts_max],col=3)
-    #fig.update_yaxes(title_text='Number of inputs',range=[0,counts_max],col=4)
-    fig.update_xaxes(title_text='Neuron index',col=3)
+    # fig.update_yaxes(title_text='Number of frequencies',range=[0,counts_max],col=3)
+    # #fig.update_yaxes(title_text='Number of inputs',range=[0,counts_max],col=4)
+    # fig.update_xaxes(title_text='Neuron index',col=3)
     
 
 
 
     fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_maxes_cos_sin.shape[0]),y=nongrok_combined_maxes_cos_sin.detach().numpy(),name='Learn - fourier',line=dict(color='blue'),showlegend=True),row=2,col=1)
     fig.add_trace(go.Scatter(x=np.arange(nongrok_comp_maxes.shape[0]),y=nongrok_comp_maxes.detach().numpy(),name='Learn - computational',line=dict(color='orange'),showlegend=True),row=2,col=2)
-    fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_cos_sin_counts.shape[0]),y=nongrok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - learn',line=dict(color='blue'),showlegend=False),row=2,col=3)
-    fig.add_trace(go.Scatter(x=np.arange(nongrok_counts[1].shape[0]),y=nongrok_comp_counts.detach().numpy(),name='Significant computational basis activations - learn',line=dict(color='orange'),showlegend=False),row=2,col=3)    
+    # fig.add_trace(go.Scatter(x=np.arange(nongrok_combined_cos_sin_counts.shape[0]),y=nongrok_combined_cos_sin_counts.detach().numpy(),name='Significant fourier basis activations - learn',line=dict(color='blue'),showlegend=False),row=2,col=3)
+    # fig.add_trace(go.Scatter(x=np.arange(nongrok_counts[1].shape[0]),y=nongrok_comp_counts.detach().numpy(),name='Significant computational basis activations - learn',line=dict(color='orange'),showlegend=False),row=2,col=3)    
 
 
     fig.update_layout(title_text=f'Grokking and learning paths both process in the fourier basis')
@@ -4374,8 +4382,8 @@ if __name__== "__main__":
     
 
     #Fourier activations analysis
-    nongrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_0.5"
-    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample/hiddenlayer_[512]_desc_modadd_wm_10.0"
+    nongrok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test/hiddenlayer_[512]_desc_modadd_wm_0.3"
+    grok_foldername_seedaverage="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/test/hiddenlayer_[512]_desc_modadd_wm_20.0"
     # overall_folder="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAdditionCluster/sample"
     grok_object=open_files_in_leaf_directories(grok_foldername_seedaverage)[0]
     print(f'grok object trainargs {grok_object.trainargs}')
@@ -4385,12 +4393,12 @@ if __name__== "__main__":
     # exit()
 
     # save_dic=save_pruning_curves(modelfolder=overall_folder,pruning_percents=np.linspace(0,1,50),layers_pruned=['model.0','model.2'],epoch='last',by_layer=False,problem="Mod")
-    saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_curves/prune_dic_curves_mod_wd_3e-4_23-9-2024, 10:55.dill"
-    plot_prune_curves_from_dict(saved_dic)
+    #saved_dic="/Users/dmitrymanning-coe/Documents/Research/Grokking/ModAddition/large_files/saved_data/mod_pruning/prune_curves/prune_dic_curves_mod_wd_3e-4_23-9-2024, 10:55.dill"
+    #plot_prune_curves_from_dict(saved_dic)
     
     
-    #modadd_activations_heatmap(grokfolder=grok_foldername_seedaverage,nongrokfolder=nongrok_foldername_seedaverage).show()
-    #mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nongrok_foldername_seedaverage).show()
+    modadd_activations_heatmap(grokfolder=grok_foldername_seedaverage,nongrokfolder=nongrok_foldername_seedaverage).show()
+    mod_add_activations_weights(grokfolder=grok_foldername_seedaverage,nongrokfolder=nongrok_foldername_seedaverage).show()
     
     exit()
 
